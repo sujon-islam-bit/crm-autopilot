@@ -421,8 +421,103 @@ export async function signatureAction(dealExternalId: string) {
   return { ok: true, configured, sent };
 }
 
-export async function disconnectAction(provider: string) {
+// ---------- Deals & Contacts: hand-created records ----------
+export async function createDealAction(input: {
+  name: string;
+  company: string;
+  amount: string;
+  stage: string;
+  closeDate: string;
+}) {
   const { workspace, user } = await requireWorkspace();
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Give the deal a name" };
+  const amount = input.amount.trim() ? Number(input.amount) : null;
+  if (amount != null && (Number.isNaN(amount) || amount < 0)) return { ok: false, error: "Amount must be a number" };
+  const { randomUUID } = await import("node:crypto");
+  const deal = await prisma.crmDeal.create({
+    data: {
+      workspaceId: workspace.id,
+      externalId: `local-${randomUUID()}`,
+      source: "local",
+      name,
+      company: input.company.trim() || null,
+      stage: input.stage || "New",
+      amount,
+      ownerName: user.name || null,
+      closeDate: input.closeDate ? new Date(`${input.closeDate}T00:00:00`) : null,
+      lastActivityAt: new Date(),
+    },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: user.id,
+      action: "captured",
+      summary: `Deal created by hand: ${deal.name}`,
+      meta: { dealExternalId: deal.externalId } as Prisma.InputJsonValue,
+    },
+  });
+  refresh();
+  return { ok: true, id: deal.id };
+}
+
+export async function createContactAction(input: {
+  name: string;
+  email: string;
+  title: string;
+  company: string;
+}) {
+  const { workspace, user } = await requireWorkspace();
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Give the contact a name" };
+  const email = input.email.trim();
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "That email doesn't look right" };
+  const contact = await prisma.crmContact.create({
+    data: {
+      workspaceId: workspace.id,
+      name,
+      email: email || null,
+      title: input.title.trim() || null,
+      company: input.company.trim() || null,
+    },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: user.id,
+      action: "captured",
+      summary: `Contact created by hand: ${contact.name}`,
+      meta: { contactId: contact.id } as Prisma.InputJsonValue,
+    },
+  });
+  refresh();
+  return { ok: true, id: contact.id };
+}
+
+export async function createAccountAction(input: { name: string; industry: string }) {
+  const { workspace, user } = await requireWorkspace();
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Give the account a company name" };
+  const existing = await prisma.crmAccount.findFirst({ where: { workspaceId: workspace.id, name } });
+  if (existing) return { ok: false, error: "That account already exists" };
+  const account = await prisma.crmAccount.create({
+    data: { workspaceId: workspace.id, name, industry: input.industry.trim() || null },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: user.id,
+      action: "captured",
+      summary: `Account created by hand: ${account.name}`,
+      meta: { accountId: account.id } as Prisma.InputJsonValue,
+    },
+  });
+  refresh();
+  return { ok: true, id: account.id };
+}
+
+export async function disconnectAction(provider: string) {  const { workspace, user } = await requireWorkspace();
   await prisma.connection.deleteMany({ where: { workspaceId: workspace.id, provider } });
   const { audit } = await import("./audit");
   await audit(workspace.id, "disconnected", `Disconnected ${provider}`, { userId: user.id });

@@ -81,6 +81,7 @@ model Workspace {
   connections Connection[]
   deals       CrmDeal[]
   contacts    CrmContact[]
+  accounts    CrmAccount[]
   captures    Capture[]
   proposals   Proposal[]
   audits      AuditEvent[]
@@ -143,6 +144,23 @@ model CrmDeal {
 
   @@unique([workspaceId, externalId])
   @@map("crm_deal")
+}
+
+// An account (company) created explicitly from Deals & Contacts. Most
+// accounts are DERIVED from the company strings on deals/contacts; this
+// model only holds companies created by hand before they have records,
+// plus an industry override for any company.
+model CrmAccount {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  industry    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@map("crm_account")
 }
 
 model CrmContact {
