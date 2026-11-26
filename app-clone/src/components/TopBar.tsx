@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { I } from "./icons";
 import { Avatar } from "./Sidebar";
 
@@ -22,6 +23,10 @@ export default function TopBar({
   const [hits, setHits] = useState<Hit[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const path = usePathname();
+  // On the AI Assistant page the search box is redundant (the assistant
+  // itself is the search) — Sujon's order: hide it there, keep it elsewhere.
+  const hideSearch = path === "/assistant" || (path?.startsWith("/assistant/") ?? false);
 
   useEffect(() => {
     if (!q.trim()) {
@@ -51,6 +56,7 @@ export default function TopBar({
 
   return (
     <div className="flex items-center gap-4 px-7 pt-5">
+      {!hideSearch && (
       <div ref={boxRef} className="relative w-[500px] max-w-[46vw]">
         <div className="flex items-center gap-2.5 rounded-full border border-line bg-white py-2.5 pr-2.5 pl-4 shadow-[0_1px_2px_rgba(23,23,40,0.05)]">
           <I n="search" size={16} className="shrink-0 text-faint" />
@@ -84,6 +90,7 @@ export default function TopBar({
           </div>
         )}
       </div>
+      )}
 
       <div className="ml-auto flex items-center gap-4">
         <span className="flex items-center gap-1.5 text-[12.5px] font-medium whitespace-nowrap text-ink2">

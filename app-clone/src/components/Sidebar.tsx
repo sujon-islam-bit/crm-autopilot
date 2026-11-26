@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { I, LogoMark } from "./icons";
 
 const NAV: { href: string; label: string; icon: string; badge?: boolean }[] = [
@@ -54,6 +55,25 @@ export default function Sidebar({
   hiddenHrefs?: string[];
 }) {
   const path = usePathname();
+  const router = useRouter();
+  // ⌘K / Ctrl+K jumps to the AI Assistant from anywhere in the app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        router.push("/assistant");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [router]);
+
+  // While on /assistant, ONE extra row lives under the AI Assistant
+  // button: "Chat history" (Sujon's reference). It is a plain nav-style
+  // row — the thread list itself opens inside the assistant page, which
+  // owns the conversation state; the click is handed over via a window
+  // event. Nothing else in the sidebar changes.
+  const onAssistant = path === "/assistant";
   const visible = NAV.filter((item) => !hiddenHrefs.includes(item.href));
   const top = visible.filter((item) => TOP_HREFS.includes(item.href));
   const bottom = visible.filter((item) => !TOP_HREFS.includes(item.href));
@@ -67,15 +87,44 @@ export default function Sidebar({
         </div>
       </div>
 
-      <nav className="mt-7 flex flex-col gap-0.5">
-        {top.map((item) => (
-          <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
-        ))}
-        <div className="my-3.5 border-t border-line/70" />
-        {bottom.map((item) => (
-          <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
-        ))}
-      </nav>
+      {/* AI Assistant — visible to every role; a page, not a nav row. */}
+      <Link
+        href="/assistant"
+        className={`mt-6 flex items-center gap-2.5 rounded-[10px] px-2.5 py-[9px] text-[13.5px] font-semibold text-white shadow-[0_4px_14px_rgba(210,59,114,0.25)] transition-colors ${
+          path === "/assistant" ? "bg-[#bc3163]" : "bg-[#d23b72] hover:bg-[#bc3163]"
+        }`}
+      >
+        <I n="sparkle" size={16} />
+        <span className="flex-1">AI Assistant</span>
+        <kbd className="rounded-[5px] bg-white/20 px-1.5 py-px text-[11px] font-semibold">⌘K</kbd>
+      </Link>
+
+      {/* Middle region (Chats + nav) scrolls if space ever gets tight —
+          the logo, AI Assistant button, bottom card and user row above and
+          below it never move, shrink or restyle. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* Chat history — a single quiet nav-style row, only on
+            /assistant. Opens the thread list inside the assistant page. */}
+        {onAssistant && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-history"))}
+            className="mt-2 flex items-center gap-2.5 rounded-[10px] px-2.5 py-[7px] text-left text-[13.5px] font-medium text-ink2 transition-colors hover:bg-white/70 hover:text-ink"
+          >
+            <I n="clock" size={17} />
+            <span className="flex-1">Chat history</span>
+          </button>
+        )}
+
+        <nav className="mt-4 flex flex-col gap-0.5">
+          {top.map((item) => (
+            <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
+          ))}
+          <div className="my-3.5 border-t border-line/70" />
+          {bottom.map((item) => (
+            <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
+          ))}
+        </nav>
+      </div>
 
       <div className="mt-auto">
         <div className="rounded-2xl bg-sidebar-card p-4">

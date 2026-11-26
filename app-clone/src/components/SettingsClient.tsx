@@ -209,6 +209,7 @@ export default function SettingsClient({
   const [companyName, setCompanyName] = useState(data.workspace.settings.companyName);
   const [location, setLocation] = useState(data.workspace.settings.location);
   const [threshold, setThreshold] = useState(data.workspace.settings.confidenceThreshold);
+  const [assistantLimit, setAssistantLimit] = useState(data.workspace.settings.assistantDailyLimit);
   const [focus, setFocus] = useState(data.workspace.settings.analysisFocus);
   const [prefs, setPrefs] = useState(data.notifications);
   const [retention, setRetention] = useState(data.workspace.settings.dataRetentionMonths);
@@ -397,7 +398,7 @@ export default function SettingsClient({
                       onChange={(e) => {
                         const v = Number(e.target.value);
                         setThreshold(v);
-                        save(() => saveAiPreferencesAction({ confidenceThreshold: v, analysisFocus: focus }));
+                        save(() => saveAiPreferencesAction({ confidenceThreshold: v, analysisFocus: focus, assistantDailyLimit: assistantLimit }));
                       }}
                       className={selectCls}
                     >
@@ -408,6 +409,45 @@ export default function SettingsClient({
                       ))}
                     </select>
                     <I n="chevD" size={13} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted" />
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 py-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-bold text-ink">Assistant Daily Limit</div>
+                    <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
+                      How many messages each person can send to the AI Assistant per day
+                      (5–500). The counter resets at midnight; changes apply immediately.
+                    </p>
+                  </div>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <input
+                      aria-label="Assistant daily limit"
+                      type="number"
+                      min={5}
+                      max={500}
+                      step={1}
+                      value={assistantLimit}
+                      disabled={!canSettings || busy}
+                      onChange={(e) => setAssistantLimit(Number(e.target.value))}
+                      onBlur={() => {
+                        const v = Math.min(500, Math.max(5, Math.round(assistantLimit) || 30));
+                        setAssistantLimit(v);
+                        if (v !== data.workspace.settings.assistantDailyLimit) {
+                          save(() =>
+                            saveAiPreferencesAction({
+                              confidenceThreshold: threshold,
+                              analysisFocus: focus,
+                              assistantDailyLimit: v,
+                            }),
+                          );
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      className={`${inputCls} w-[96px] text-center font-semibold`}
+                    />
+                    <span className="text-[12.5px] text-muted">/ day</span>
                   </span>
                 </div>
                 <div className="flex items-center gap-4 py-4">
@@ -435,7 +475,7 @@ export default function SettingsClient({
                       onChange={(e) => {
                         const v = e.target.value as typeof focus;
                         setFocus(v);
-                        save(() => saveAiPreferencesAction({ confidenceThreshold: threshold, analysisFocus: v }));
+                        save(() => saveAiPreferencesAction({ confidenceThreshold: threshold, analysisFocus: v, assistantDailyLimit: assistantLimit }));
                       }}
                       className={selectCls}
                     >

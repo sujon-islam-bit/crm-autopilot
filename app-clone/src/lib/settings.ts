@@ -8,6 +8,8 @@ export type WorkspaceSettings = {
   location: string;
   /** AI Preferences: proposals below this confidence get a marker in Approvals. */
   confidenceThreshold: number;
+  /** AI Preferences: per-user daily cap on AI Assistant chat messages. */
+  assistantDailyLimit: number;
   analysisFocus: "balanced" | "deals" | "quality" | "enrichment" | "followups";
   /** Security: how long activity history is kept, in months. */
   dataRetentionMonths: number;
@@ -19,6 +21,7 @@ export const WORKSPACE_SETTINGS_DEFAULTS: WorkspaceSettings = {
   // 50%: the demo's pending proposals run 73–96, so the standing state shows
   // no "Below threshold" markers until someone deliberately raises this.
   confidenceThreshold: 50,
+  assistantDailyLimit: 30,
   analysisFocus: "balanced",
   dataRetentionMonths: 12,
 };
@@ -33,6 +36,13 @@ export function parseWorkspaceSettings(raw: unknown): WorkspaceSettings {
       typeof o.confidenceThreshold === "number" && [50, 60, 70, 80, 90].includes(o.confidenceThreshold)
         ? o.confidenceThreshold
         : WORKSPACE_SETTINGS_DEFAULTS.confidenceThreshold,
+    assistantDailyLimit:
+      typeof o.assistantDailyLimit === "number" &&
+      Number.isFinite(o.assistantDailyLimit) &&
+      Math.round(o.assistantDailyLimit) >= 5 &&
+      Math.round(o.assistantDailyLimit) <= 500
+        ? Math.round(o.assistantDailyLimit)
+        : WORKSPACE_SETTINGS_DEFAULTS.assistantDailyLimit,
     analysisFocus: (["balanced", "deals", "quality", "enrichment", "followups"].includes(focus)
       ? focus
       : "balanced") as WorkspaceSettings["analysisFocus"],

@@ -92,6 +92,7 @@ model Workspace {
   signatures  SignatureRequest[]
   snapshots   HealthSnapshot[]
   guardrails  GuardrailSetting?
+  assistantMessages AssistantMessage[]
 
   @@map("workspace")
 }
@@ -319,4 +320,26 @@ model GuardrailSetting {
   workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("guardrail_setting")
+}
+
+// In-product AI Assistant chat. One thread per conversation ("New chat"
+// starts a new threadId; the page shows the latest thread). Assistant
+// messages that prepared a change link to the Proposal they created —
+// the proposal still goes through the normal approval flow; the chat
+// card is just another window onto it. `meta` carries the structured
+// blocks (deal rows, links) so history re-renders exactly as sent.
+model AssistantMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  threadId    String
+  role        String // user | assistant
+  content     String
+  meta        Json?
+  proposalId  String?
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, threadId, createdAt])
+  @@map("assistant_message")
 }

@@ -70,15 +70,22 @@ export async function saveCompanyDetailsAction(input: { companyName: string; loc
 
 // ---------- AI Preferences ----------
 
-export async function saveAiPreferencesAction(input: { confidenceThreshold: number; analysisFocus: string }) {
+export async function saveAiPreferencesAction(input: {
+  confidenceThreshold: number;
+  analysisFocus: string;
+  assistantDailyLimit: number;
+}) {
   const { workspace, role } = await requireWorkspace();
   if (!can(role, "settings.write")) return { ok: false, error: "Only the Owner or an Admin can change AI preferences" };
   const focus = ["balanced", "deals", "quality", "enrichment", "followups"].includes(input.analysisFocus)
     ? input.analysisFocus
     : "balanced";
   const threshold = [50, 60, 70, 80, 90].includes(input.confidenceThreshold) ? input.confidenceThreshold : 50;
+  const rawLimit = Math.round(Number(input.assistantDailyLimit));
+  const assistantDailyLimit = Number.isFinite(rawLimit) ? Math.min(500, Math.max(5, rawLimit)) : 30;
   await writeWorkspaceSettings(workspace.id, {
     confidenceThreshold: threshold,
+    assistantDailyLimit,
     analysisFocus: focus as ReturnType<typeof parseWorkspaceSettings>["analysisFocus"],
   });
   refreshSettings();
