@@ -336,6 +336,15 @@ export function confidenceTone(c: number | null): "green" | "amber" | "grey" {
 
 // ---- Pipeline board: one deal, serialised for the client ----
 export type DealActivity = { title: string; status: string; when: string };
+export type DealInsight = {
+  /** "Going cold" | "No reply" | "Promise due" | "Progressed" | "Latest signal" | "On track" */
+  label: string;
+  tone: "red" | "amber" | "purple" | "green" | "grey";
+  text: string;
+  /** e.g. "Zoom Call • Nov 24, 2026" — the evidence behind the latest proposal, when one exists */
+  source: string | null;
+  quote: string | null;
+};
 export type DealView = {
   id: string;
   externalId: string;
@@ -351,4 +360,10 @@ export type DealView = {
   signatureStatus: string | null;
   activity: DealActivity[];
   latestReason: string | null;
+  // ---- Pipeline Compare extras (only the pipeline page fills these) ----
+  prevStage?: string;
+  daysInStage?: number | null;
+  risk?: "High" | "Medium" | "Low" | null;
+  insight?: DealInsight | null;
+  tabFlags?: { progressed: boolean; stalled: boolean; slipped: boolean };
 };

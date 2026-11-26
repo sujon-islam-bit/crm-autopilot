@@ -6,6 +6,15 @@
 // design's set (Acme 96 / Sarah Lee 94 / NovaTech 91 …), each with a tab
 // category — Deal Updates 6 · New Contacts 3 · Enrichment 3 · Follow-ups 2
 // · Field Fixes 0 — and the workspace health score is 98 (design top pill).
+// Pipeline Compare (2026-11-26): the base-bucket deals are spread 31–59
+// days back (the dashboard pulse only needs them before last Monday) so
+// 30-day comparisons have an honest base; 2 Lost + 1 extra Won deal make
+// the win rate real; applied stage-change / close-date history proposals
+// (below) give every Previous Stage, Days in Stage, movement-chart
+// previous bar and tab count a traceable row. History proposals carry NO
+// savedMinutes and are decided either >7 days ago or created+decided
+// inside the last 7 days, so the queue delta (+3) and rep time (630/562)
+// are untouched.
 import { readFileSync } from "node:fs";
 
 // --- load .env before importing app code ---
@@ -99,18 +108,20 @@ type DealSpec = [
   { owner?: string | null; lastActDays?: number; close?: string }?,
 ];
 const dealSpecs: DealSpec[] = [
-  // BASE bucket (before last week) — 850,000
-  ["hs-201", "Acme Corp", 120000, "Discovery", daysAgo(16), { close: "2026-12-15", lastActDays: 2 }],
-  ["hs-202", "Datawise", 142000, "Negotiation", daysAgo(18), { lastActDays: 1 }],
-  ["hs-203", "Brightline", 110000, "Proposal sent", daysAgo(15), { lastActDays: 2 }],
-  ["hs-204", "CloudFlow", 96000, "Meeting booked", daysAgo(20), { lastActDays: 1 }],
-  ["hs-205", "Vale Clinics", 92000, "Meeting booked", daysAgo(17), { lastActDays: 3 }],
-  ["hs-206", "Ostro Media", 88000, "Negotiation", daysAgo(19), { lastActDays: 2 }],
-  ["hs-207", "Northstar", 85000, "Negotiation", daysAgo(21), { lastActDays: 14 }],
-  ["hs-208", "Pinehost", 51000, "Contacted", daysAgo(14), { lastActDays: 2 }],
-  ["hs-210", "PixelWorks", 18000, "Proposal sent", daysAgo(35), { owner: null, lastActDays: 33 }],
-  ["hs-212", "Zenith Labs", 15000, "Discovery", daysAgo(38), { lastActDays: 36 }],
-  ["hs-219", "Moss Legal", 33000, "New", daysAgo(24), { lastActDays: 3 }],
+  // BASE bucket (before last week) — 850,000. CreatedAt spread 31–59 days
+  // back (Pipeline Compare needs a real previous-30-days base; the pulse
+  // only requires "before last Monday", which still holds).
+  ["hs-201", "Acme Corp", 120000, "Discovery", daysAgo(33), { close: "2026-12-15", lastActDays: 2 }],
+  ["hs-202", "Datawise", 142000, "Negotiation", daysAgo(47), { lastActDays: 1 }],
+  ["hs-203", "Brightline", 110000, "Proposal sent", daysAgo(36), { close: "2026-12-22", lastActDays: 2 }],
+  ["hs-204", "CloudFlow", 96000, "Meeting booked", daysAgo(42), { lastActDays: 1 }],
+  ["hs-205", "Vale Clinics", 92000, "Meeting booked", daysAgo(39), { lastActDays: 3 }],
+  ["hs-206", "Ostro Media", 88000, "Negotiation", daysAgo(45), { close: "2026-12-05", lastActDays: 2 }],
+  ["hs-207", "Northstar", 85000, "Negotiation", daysAgo(51), { lastActDays: 14 }],
+  ["hs-208", "Pinehost", 51000, "Contacted", daysAgo(31), { lastActDays: 2 }],
+  ["hs-210", "PixelWorks", 18000, "Proposal sent", daysAgo(54), { owner: null, lastActDays: 33 }],
+  ["hs-212", "Zenith Labs", 15000, "Discovery", daysAgo(57), { lastActDays: 36 }],
+  ["hs-219", "Moss Legal", 33000, "New", daysAgo(59), { lastActDays: 3 }],
   // LAST WEEK bucket (Mon–Sun) — +238,000 → 1,088,000
   ["hs-214", "Redwood", 12000, "Proposal sent", wk(-1, 0), { owner: null, lastActDays: 34 }],
   ["hs-211", "Bluepeak", 16000, "Contacted", wk(-1, 1), { owner: null, lastActDays: 40 }],
@@ -126,7 +137,7 @@ const dealSpecs: DealSpec[] = [
   ["hs-213", "NovaTech", 14000, "Contacted", wk(0, 2), { owner: null, lastActDays: 44, close: "2026-12-20" }],
   ["hs-226", "Loomly", 18000, "New", wk(0, 3), { owner: null, lastActDays: 3 }],
   ["hs-225", "Vantage", 24000, "Proposal sent", wk(0, 4), { lastActDays: 2 }],
-  ["hs-220", "Sunridge", 28000, "Contacted", wk(0, 5), { owner: null, lastActDays: 4 }],
+  ["hs-220", "Sunridge", 28000, "Contacted", wk(0, 5), { owner: null, lastActDays: 4, close: "2026-12-18" }],
   ["hs-217", "Kite & Anchor", 48000, "Proposal sent", wk(0, 6), { lastActDays: 1 }],
 ];
 let openTotal = 0;
@@ -159,7 +170,33 @@ await prisma.crmDeal.create({
     amount: 45000,
     ownerName: "Md Yasses",
     lastActivityAt: daysAgo(6),
-    createdAt: daysAgo(20),
+    createdAt: daysAgo(50),
+  },
+});
+// Terminal deals for Pipeline Compare (win rate = won / (won + lost) = 2/4).
+// Aldercroft: won 65 days ago (stage history below). Quantic: lost 35 days
+// ago; its lastActivityAt is 20 days back (a closing email thread) so it
+// stays out of hygiene's stale set (silent > 30). Castline: created inside
+// the current 30-day period, lost 25 days ago.
+await prisma.crmDeal.create({
+  data: {
+    workspaceId: W, externalId: "hs-230", source: "hubspot",
+    name: "Aldercroft", company: "Aldercroft", stage: "Won", amount: 62000,
+    ownerName: "Md Yasses", lastActivityAt: daysAgo(40), createdAt: daysAgo(75),
+  },
+});
+await prisma.crmDeal.create({
+  data: {
+    workspaceId: W, externalId: "hs-228", source: "hubspot",
+    name: "Quantic Systems", company: "Quantic Systems", stage: "Lost", amount: 30000,
+    ownerName: "Md Yasses", lastActivityAt: daysAgo(20), createdAt: daysAgo(52),
+  },
+});
+await prisma.crmDeal.create({
+  data: {
+    workspaceId: W, externalId: "hs-229", source: "hubspot",
+    name: "Castline", company: "Castline", stage: "Lost", amount: 18000,
+    ownerName: "Md Yasses", lastActivityAt: daysAgo(25), createdAt: daysAgo(29),
   },
 });
 console.log("open pipeline total:", openTotal);
@@ -791,6 +828,99 @@ await proposal({
   status: "pending",
   createdAt: minsAgo(70),
 });
+
+// ---------- applied history (Pipeline Compare) ----------
+// Real applied proposals that record how deals reached their current
+// stage / close date. They are the ONLY source the Pipeline page uses for
+// Previous Stage, Days in Stage, the movement chart's previous-period
+// bars, and the Progressed / Slipped tabs — every figure traces to one of
+// these rows. No savedMinutes (rep time stays 630 vs 562); decidedAt is
+// either >7 days ago or created+decided within the last 7 days, so the
+// rolling queue-delta snapshot (+3) never sees them as pending.
+async function stageHistory(
+  dealExternalId: string,
+  dealName: string,
+  from: string,
+  to: string,
+  appliedAt: Date,
+  reason: string,
+) {
+  // A movement can never predate the deal itself (the wk()-dated deals
+  // shift with the weekday the seed runs on) — clamp to just after creation.
+  const deal = await prisma.crmDeal.findFirst({
+    where: { workspaceId: W, externalId: dealExternalId },
+    select: { createdAt: true },
+  });
+  if (deal && appliedAt.getTime() <= deal.createdAt.getTime()) {
+    appliedAt = new Date(deal.createdAt.getTime() + 2 * 3600_000);
+  }
+  const p = await proposal({
+    workspaceId: W,
+    type: "deal_stage",
+    category: "deal_update",
+    title: `Move ${dealName} to ${to}`,
+    confidence: 90,
+    source: "gmail",
+    dealExternalId,
+    reason,
+    detail: { field: "stage", fromValue: from, toValue: to, _prevStage: from },
+    status: "applied",
+    createdAt: new Date(appliedAt.getTime() - 2 * 3600_000),
+    decidedAt: appliedAt,
+    appliedAt,
+  });
+  await auditAt("applied", `Applied: ${p.title}`, appliedAt, p.id);
+  return p;
+}
+async function closeDateHistory(
+  dealExternalId: string,
+  dealName: string,
+  fromIso: string,
+  toIso: string,
+  appliedAt: Date,
+  reason: string,
+) {
+  const p = await proposal({
+    workspaceId: W,
+    type: "deal_field",
+    category: "deal_update",
+    title: `Update ${dealName} close date`,
+    confidence: 88,
+    source: "gmail",
+    dealExternalId,
+    reason,
+    detail: { field: "closeDate", fromValue: fromIso, toValue: toIso, _prevCloseDate: fromIso },
+    status: "applied",
+    createdAt: new Date(appliedAt.getTime() - 2 * 3600_000),
+    decidedAt: appliedAt,
+    appliedAt,
+  });
+  await auditAt("applied", `Applied: ${p.title}`, appliedAt, p.id);
+  return p;
+}
+// Older movements (shape the previous-period stage reconstruction)
+await stageHistory("hs-230", "Aldercroft", "Negotiation", "Won", daysAgo(65, 15), "Signed after the final security review — Aldercroft closed.");
+await stageHistory("hs-202", "Datawise", "Discovery", "Proposal sent", daysAgo(40, 15), "Discovery complete; the proposal went out with the seat breakdown.");
+await stageHistory("hs-210", "PixelWorks", "Discovery", "Proposal sent", daysAgo(40, 16), "Proposal sent after the design-partner review.");
+await stageHistory("hs-227", "Harbor Labs", "Negotiation", "Proposal sent", daysAgo(44, 15), "Commercial terms agreed in principle; proposal drafted.");
+await stageHistory("hs-228", "Quantic Systems", "Negotiation", "Lost", daysAgo(35, 15), "Quantic chose a competitor on price and closed the evaluation.");
+await stageHistory("hs-207", "Northstar", "Contacted", "Negotiation", daysAgo(28, 15), "Budget holder engaged; moved straight to negotiation.");
+await stageHistory("hs-205", "Vale Clinics", "Discovery", "Meeting booked", daysAgo(25, 15), "James Park booked the procurement review meeting.");
+await stageHistory("hs-229", "Castline", "Proposal sent", "Lost", daysAgo(25, 16), "Castline paused the project and the deal was marked lost.");
+await stageHistory("hs-203", "Brightline", "Contacted", "Proposal sent", daysAgo(22, 15), "Proposal sent following the finance call.");
+await stageHistory("hs-201", "Acme Corp", "New", "Discovery", daysAgo(20, 15), "First discovery call held with Priya Nair's team.");
+await stageHistory("hs-202", "Datawise", "Proposal sent", "Negotiation", daysAgo(18, 15), "Tom Becker confirmed the seat expansion in writing — negotiation opened.");
+await stageHistory("hs-204", "CloudFlow", "Contacted", "Meeting booked", daysAgo(15, 15), "Elena Rodriguez scheduled the technical deep-dive.");
+await stageHistory("hs-208", "Pinehost", "New", "Contacted", daysAgo(12, 15), "Omar Farouk replied to the intro email.");
+await stageHistory("hs-227", "Harbor Labs", "Proposal sent", "Won", daysAgo(12, 16), "Signed order form received — Harbor Labs closed won.");
+await stageHistory("hs-206", "Ostro Media", "Proposal sent", "Negotiation", daysAgo(10, 15), "Aisha Khan opened negotiation on the annual terms.");
+// Close dates that slipped later (Close Date Slipped tab)
+await closeDateHistory("hs-203", "Brightline", "2026-12-08", "2026-12-22", daysAgo(15, 16), "Brightline's board moved the signing to December 22.");
+await closeDateHistory("hs-206", "Ostro Media", "2026-11-20", "2026-12-05", daysAgo(9, 15), "Ostro's legal review pushed the close to December 5.");
+// Recent movements (inside the last 7 days; created+decided there too)
+await stageHistory("hs-223", "Northbeam", "Proposal sent", "Negotiation", daysAgo(6, 15), "Noah Berg brought in their VP Sales — negotiation started.");
+await stageHistory("hs-221", "Koda Labs", "Contacted", "Meeting booked", daysAgo(4, 15), "Demo call booked with the Koda Labs team.");
+await stageHistory("hs-222", "BetaFlow", "New", "Discovery", daysAgo(3, 15), "Discovery opened after Dana Kim's intro call.");
 
 // Decided this week — 11 applied, savedMinutes sum 630 (= 10.5 hrs)
 const savedThisWeek = [60, 60, 60, 55, 55, 55, 55, 60, 60, 55, 55];

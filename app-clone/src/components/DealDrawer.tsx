@@ -45,6 +45,35 @@ export default function DealDrawer({ deal, onClose }: { deal: DealView; onClose:
         <p className="mt-2.5 text-[12.5px] leading-snug text-muted">{deal.health.note}</p>
       )}
 
+      {deal.insight && (
+        <>
+          <SectionTitle title="AI insight" />
+          <div className="rounded-xl border border-line px-3.5 py-3">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-[2px] text-[10.5px] font-bold ${
+                deal.insight.tone === "red"
+                  ? "bg-[#fdecec] text-red"
+                  : deal.insight.tone === "amber"
+                    ? "bg-amber-tint text-amber"
+                    : deal.insight.tone === "purple"
+                      ? "bg-purple-tint text-purple"
+                      : deal.insight.tone === "green"
+                        ? "bg-green-tint text-green"
+                        : "bg-canvas text-muted"
+              }`}
+            >
+              <I n="sparkle" size={10} sw={2.4} />
+              {deal.insight.label}
+            </span>
+            <p className="mt-2 text-[12.5px] leading-snug text-ink2">{deal.insight.text}</p>
+            {deal.insight.quote && (
+              <p className="mt-2 text-[12.5px] leading-snug text-muted italic">“{deal.insight.quote}”</p>
+            )}
+            {deal.insight.source && <p className="mt-1 text-[11px] text-faint">{deal.insight.source}</p>}
+          </div>
+        </>
+      )}
+
       <SectionTitle title="Deal details" />
       <div className="overflow-hidden rounded-xl border border-line">
         <Row label="Company" value={deal.company ?? "—"} />

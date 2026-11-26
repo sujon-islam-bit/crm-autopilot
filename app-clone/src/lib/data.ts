@@ -39,7 +39,9 @@ export async function getDashboardData(workspaceId: string) {
       pendingAt(workspaceId, weekAgo),
       computeHygiene(workspaceId),
       prisma.crmDeal.findMany({
-        where: { workspaceId, stage: { not: "Won" } },
+        // Open = not in a terminal stage. "Lost" must be excluded alongside
+        // "Won" or lost deals would leak into the pulse/open sums.
+        where: { workspaceId, stage: { notIn: ["Won", "Lost"] } },
         select: { amount: true, createdAt: true },
       }),
       prisma.proposal.findMany({
