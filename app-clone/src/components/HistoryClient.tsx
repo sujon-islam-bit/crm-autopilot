@@ -119,9 +119,14 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 function DetailPanel({
   batch,
   onRollback,
+  canRollback,
 }: {
   batch: BatchView;
   onRollback: (b: BatchView) => void;
+  /** False when this user's role/scope may not roll this batch back
+   *  (Viewer, or a Sales Rep outside their own deals): the availability
+   *  info stays readable but no Rollback button renders. */
+  canRollback: boolean;
 }) {
   const [tab, setTab] = useState<PanelTab>("changes");
   const total = batch.breakdown.reduce((s, x) => s + x.count, 0);
@@ -280,12 +285,14 @@ function DetailPanel({
                     {w}
                   </div>
                 ))}
-                <button
-                  onClick={() => onRollback(batch)}
-                  className="mt-4 w-full rounded-xl border border-[#f0c6c6] bg-[#fdf1f1] py-2.5 text-[13px] font-bold text-[#d64545] transition hover:bg-[#fbe4e4]"
-                >
-                  Rollback Sync
-                </button>
+                {canRollback && (
+                  <button
+                    onClick={() => onRollback(batch)}
+                    className="mt-4 w-full rounded-xl border border-[#f0c6c6] bg-[#fdf1f1] py-2.5 text-[13px] font-bold text-[#d64545] transition hover:bg-[#fbe4e4]"
+                  >
+                    Rollback Sync
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -450,9 +457,22 @@ function RollbackModal({
 
 /* ---------------- main ---------------- */
 
-export default function HistoryClient({ data, period }: { data: HistoryData; period: number }) {
+export default function HistoryClient({
+  data,
+  period,
+  rollbackBatches,
+}: {
+  data: HistoryData;
+  period: number;
+  /** Batch ids this user may roll back (role + scope, computed by the
+   *  server page to mirror rollbackBatchAction). Batches outside the
+   *  list keep their rows and "Revertable Until" info but render no
+   *  Rollback button. */
+  rollbackBatches: string[];
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const canRoll = (b: BatchView) => rollbackBatches.includes(b.batchId);
   const [tab, setTab] = useState<Tab>("sync");
   const [selectedId, setSelectedId] = useState<string | null>(data.batches[0]?.batchId ?? null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -531,13 +551,15 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
                     >
                       View details
                     </button>
-                    <button
-                      onClick={() => b.revertable && openRollback(b)}
-                      disabled={!b.revertable}
-                      className="block w-full px-3.5 py-2 text-left text-[12.5px] font-medium text-[#d64545] hover:bg-[#fdf6f6] disabled:cursor-not-allowed disabled:text-[#b9bdcf]"
-                    >
-                      Rollback
-                    </button>
+                    {(!b.revertable || canRoll(b)) && (
+                      <button
+                        onClick={() => b.revertable && openRollback(b)}
+                        disabled={!b.revertable}
+                        className="block w-full px-3.5 py-2 text-left text-[12.5px] font-medium text-[#d64545] hover:bg-[#fdf6f6] disabled:cursor-not-allowed disabled:text-[#b9bdcf]"
+                      >
+                        Rollback
+                      </button>
+                    )}
                   </span>
                 </>
               )}
@@ -778,7 +800,7 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
                               {b.status === "Rolled back" ? "—" : b.revertableUntil}
                             </td>
                             <td className="px-5 py-3 text-right">
-                              {b.revertable ? (
+                              {b.revertable && canRoll(b) ? (
                                 <button
                                   onClick={() => openRollback(b)}
                                   className="rounded-lg border border-[#f0c6c6] px-3 py-1.5 text-[12px] font-bold text-[#d64545] transition hover:bg-[#fdf1f1]"
@@ -787,7 +809,7 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
                                 </button>
                               ) : (
                                 <span className="text-[12px] font-medium text-[#9aa0b5]">
-                                  {b.status === "Rolled back" ? "Rolled back" : "Window closed"}
+                                  {b.status === "Rolled back" ? "Rolled back" : b.revertable ? "Revertable" : "Window closed"}
                                 </span>
                               )}
                             </td>
@@ -918,7 +940,7 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
                             <StatusPill status={b.status} />
                           </td>
                           <td className="px-5 py-3.5 text-right">
-                            {b.revertable ? (
+                            {b.revertable && canRoll(b) ? (
                               <button
                                 onClick={() => openRollback(b)}
                                 className="rounded-lg border border-[#f0c6c6] px-3 py-1.5 text-[12px] font-bold text-[#d64545] transition hover:bg-[#fdf1f1]"
@@ -927,7 +949,7 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
                               </button>
                             ) : (
                               <span className="text-[12px] font-medium text-[#9aa0b5]">
-                                {b.status === "Rolled back" ? "Rolled back" : "Window closed"}
+                                {b.status === "Rolled back" ? "Rolled back" : b.revertable ? "Revertable" : "Window closed"}
                               </span>
                             )}
                           </td>
@@ -1055,7 +1077,7 @@ export default function HistoryClient({ data, period }: { data: HistoryData; per
           )}
         </div>
 
-        {showPanel && selected && <DetailPanel batch={selected} onRollback={openRollback} />}
+        {showPanel && selected && <DetailPanel batch={selected} onRollback={openRollback} canRollback={canRoll(selected)} />}
       </div>
 
       {rollbackFor && (

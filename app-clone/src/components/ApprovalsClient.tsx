@@ -28,11 +28,21 @@ export default function ApprovalsClient({
   decided,
   decidedTotal,
   connected,
+  canDecide = true,
+  canRunEngine = true,
+  canAddNotes = true,
+  scopedToOwn = false,
 }: {
   pending: ProposalView[];
   decided: ProposalView[];
   decidedTotal: number;
   connected: boolean;
+  /** Role gates (Settings → Team): Viewers see the queue read-only. */
+  canDecide?: boolean;
+  canRunEngine?: boolean;
+  canAddNotes?: boolean;
+  /** Sales Rep: the list is scoped to their own deals. */
+  scopedToOwn?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -142,16 +152,23 @@ export default function ApprovalsClient({
           <p className="mt-1 text-[13.5px] text-muted">
             Review AI-suggested updates before they sync to your CRM.
           </p>
+          {scopedToOwn && (
+            <p className="mt-1.5 inline-flex rounded-full bg-violet-tint px-2.5 py-[3px] text-[11.5px] font-bold text-violet">
+              Showing suggestions for your own deals only
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2.5 pt-1.5">
-          <button
-            onClick={() => setNotesOpen((o) => !o)}
-            aria-expanded={notesOpen}
-            className="btn-outline flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold"
-          >
-            <I n="plus" size={14} sw={2.2} /> Add notes
-          </button>
-          <CheckUpdatesButton variant="outline" />
+          {canAddNotes && (
+            <button
+              onClick={() => setNotesOpen((o) => !o)}
+              aria-expanded={notesOpen}
+              className="btn-outline flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold"
+            >
+              <I n="plus" size={14} sw={2.2} /> Add notes
+            </button>
+          )}
+          {canRunEngine && <CheckUpdatesButton variant="outline" />}
           <span className="relative">
             <button
               onClick={() => setFiltersOpen((o) => !o)}
@@ -223,14 +240,16 @@ export default function ApprovalsClient({
             </select>
             <I n="chevD" size={13} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted" />
           </span>
-          <button
-            onClick={approveAll}
-            disabled={busy || pending.length === 0}
-            className="btn-violet flex items-center gap-1.5 px-4 py-2 text-[13.5px] disabled:opacity-60"
-          >
-            <I n="check" size={15} sw={2.4} />
-            {confirmAll ? `Confirm — approve all ${pending.length}?` : `Approve All (${pending.length})`}
-          </button>
+          {canDecide && (
+            <button
+              onClick={approveAll}
+              disabled={busy || pending.length === 0}
+              className="btn-violet flex items-center gap-1.5 px-4 py-2 text-[13.5px] disabled:opacity-60"
+            >
+              <I n="check" size={15} sw={2.4} />
+              {confirmAll ? `Confirm — approve all ${pending.length}?` : `Approve All (${pending.length})`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -293,6 +312,7 @@ export default function ApprovalsClient({
                   checked={checked.has(v.id)}
                   onSelect={selectRow}
                   onToggleCheck={toggleCheck}
+                  canSelect={canDecide}
                 />
               ))
             )}
@@ -303,7 +323,7 @@ export default function ApprovalsClient({
               <span className="flex-1 text-[13px] font-medium text-ink2">
                 {rows.length} suggestion{rows.length === 1 ? "" : "s"} ready for your review
               </span>
-              {checked.size > 0 && (
+              {checked.size > 0 && canDecide && (
                 <>
                   <button
                     onClick={bulkApprove}
@@ -321,10 +341,12 @@ export default function ApprovalsClient({
                   </button>
                 </>
               )}
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="text-[13px] font-medium text-ink2">Select all</span>
-                <RowCheckbox checked={allListedChecked} onToggle={toggleSelectAll} label="Select all suggestions" />
-              </span>
+              {canDecide && (
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-[13px] font-medium text-ink2">Select all</span>
+                  <RowCheckbox checked={allListedChecked} onToggle={toggleSelectAll} label="Select all suggestions" />
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -332,6 +354,7 @@ export default function ApprovalsClient({
         {selectedView && (
           <ApprovalPanel
             view={selectedView}
+            canDecide={canDecide}
             onClose={() => {
               setSelId(null);
               setPanelClosed(true);
@@ -375,7 +398,7 @@ export default function ApprovalsClient({
               <span className="shrink-0 text-[12px] whitespace-nowrap text-muted">
                 {timeAgo(v.decidedAt ?? v.createdAt)}
               </span>
-              {v.status === "applied" && <UndoButton id={v.id} />}
+              {v.status === "applied" && canDecide && <UndoButton id={v.id} />}
             </div>
           ))}
         </div>

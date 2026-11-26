@@ -11,9 +11,11 @@ import { approveAction, rejectAction, approveEditedAction } from "../lib/actions
 export default function ApprovalPanel({
   view,
   onClose,
+  canDecide = true,
 }: {
   view: ProposalView;
   onClose: () => void;
+  canDecide?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -61,6 +63,11 @@ export default function ApprovalPanel({
         </span>
         <h3 className="min-w-0 flex-1 text-[15.5px] leading-snug font-bold text-ink">{view.title}</h3>
         <BarsPill value={view.confidence} />
+        {view.belowThreshold && (
+          <span className="inline-flex shrink-0 items-center rounded-full bg-amber-tint px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap text-amber">
+            Below threshold
+          </span>
+        )}
         <button onClick={onClose} className="shrink-0 text-faint hover:text-ink" aria-label="Close details">
           <I n="x" size={16} />
         </button>
@@ -205,7 +212,12 @@ export default function ApprovalPanel({
       </div>
 
       {/* Actions */}
-      {view.status === "pending" ? (
+      {view.status === "pending" && !canDecide ? (
+        <div className="mt-5 rounded-[10px] bg-canvas px-3.5 py-2.5 text-[12.5px] leading-relaxed font-medium text-ink2">
+          Your role is read-only here — you can review this suggestion, but only a teammate with
+          approval rights can act on it.
+        </div>
+      ) : view.status === "pending" ? (
         editing ? (
           <div className="mt-5 flex gap-2.5">
             <button

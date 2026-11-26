@@ -72,9 +72,11 @@ function Toggle({
 function ActionButton({
   label,
   action,
+  disabled,
 }: {
   label: string;
   action: () => Promise<{ ok: boolean; error?: string }>;
+  disabled?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -83,7 +85,8 @@ function ActionButton({
     <span className="inline-flex items-center gap-2">
       {note && <span className="text-[11.5px] text-red">{note}</span>}
       <button
-        disabled={busy}
+        disabled={busy || disabled}
+        title={disabled ? "Only the Owner or an Admin can propose clean-ups" : undefined}
         onClick={() =>
           start(async () => {
             const r = await action();
@@ -204,7 +207,18 @@ function ScoreRing({ score }: { score: number | null }) {
   );
 }
 
-export default function HygieneClient({ data, periodDays }: { data: CleanupData; periodDays: number }) {
+export default function HygieneClient({
+  data,
+  periodDays,
+  canPropose = true,
+  canGuardrails = true,
+}: {
+  data: CleanupData;
+  periodDays: number;
+  /** Role gates (Settings → Team). */
+  canPropose?: boolean;
+  canGuardrails?: boolean;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("overview");
   const [drawerDeal, setDrawerDeal] = useState<CleanupData["staleRows"][number]["deal"] | null>(null);
@@ -457,7 +471,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                   <I n="sparkle" size={17} />
                 </span>
                 <h2 className="flex-1 text-[14.5px] leading-snug font-bold">Enable Data Guardrails</h2>
-                <Toggle on={master} onChange={toggleMaster} label="Enable Data Guardrails" />
+                <Toggle on={master} onChange={toggleMaster} disabled={!canGuardrails} label="Enable Data Guardrails" />
               </div>
               <p className="mt-2 text-[12.5px] leading-relaxed text-muted">
                 Let AI prevent data issues before they happen.
@@ -559,6 +573,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                   group={group}
                   masterId={masters[group.email] ?? group.records[0].id}
                   onSelectMaster={(id) => setMasters((m) => ({ ...m, [group.email]: id }))}
+                  canPropose={canPropose}
                 />
               ))}
             </>
@@ -614,6 +629,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                     ) : row.suggestion ? (
                       <ActionButton
                         label="Propose fix"
+                        disabled={!canPropose}
                         action={() => proposeMissingFixAction(row.id)}
                       />
                     ) : (
@@ -669,6 +685,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                     ) : (
                       <ActionButton
                         label="Propose follow-up"
+                        disabled={!canPropose}
                         action={() => proposeStaleFollowupAction(row.deal.externalId)}
                       />
                     )}
@@ -709,7 +726,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                     {row.inApprovals ? (
                       <InApprovalsBadge />
                     ) : (
-                      <ActionButton label="Propose log entry" action={() => proposeLogEntryAction(row.id)} />
+                      <ActionButton label="Propose log entry" disabled={!canPropose} action={() => proposeLogEntryAction(row.id)} />
                     )}
                   </div>
                 </div>
@@ -732,7 +749,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                 is on.
               </p>
             </div>
-            <Toggle on={master} onChange={toggleMaster} label="Enable Data Guardrails" />
+            <Toggle on={master} onChange={toggleMaster} disabled={!canGuardrails} label="Enable Data Guardrails" />
           </div>
           <div className="divide-y divide-line/60">
             {data.guardrails.rules.map((rule) => {
@@ -757,6 +774,7 @@ export default function HygieneClient({ data, periodDays }: { data: CleanupData;
                   <Toggle
                     on={rules[rule.key]}
                     onChange={(v) => toggleRule(rule.key, v)}
+                    disabled={!canGuardrails}
                     label={rule.label}
                   />
                 </div>
@@ -779,10 +797,12 @@ function DupGroupCard({
   group,
   masterId,
   onSelectMaster,
+  canPropose = true,
 }: {
   group: DupGroup;
   masterId: string;
   onSelectMaster: (id: string) => void;
+  canPropose?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -803,7 +823,7 @@ function DupGroupCard({
           <InApprovalsBadge text="Waiting in Approvals" />
         ) : (
           <button
-            disabled={busy}
+            disabled={busy || !canPropose}
             onClick={() =>
               start(async () => {
                 const r = await proposeMergeAction(masterId, duplicate.id);

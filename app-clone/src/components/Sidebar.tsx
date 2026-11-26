@@ -38,16 +38,25 @@ export function Avatar({ name, size = 34 }: { name: string; size?: number }) {
   );
 }
 
+const TOP_HREFS = ["/dashboard", "/approvals", "/pipeline", "/hygiene", "/deals", "/activity"];
+
 export default function Sidebar({
   pendingCount,
   userName,
   userRole,
+  hiddenHrefs = [],
 }: {
   pendingCount: number;
   userName: string;
   userRole: string;
+  /** Pages this role cannot see at all (page-visibility rules) — their
+   *  links are not rendered. The pages also redirect server-side. */
+  hiddenHrefs?: string[];
 }) {
   const path = usePathname();
+  const visible = NAV.filter((item) => !hiddenHrefs.includes(item.href));
+  const top = visible.filter((item) => TOP_HREFS.includes(item.href));
+  const bottom = visible.filter((item) => !TOP_HREFS.includes(item.href));
   return (
     <aside className="flex h-screen w-[204px] shrink-0 flex-col border-r border-line bg-sidebar px-3.5 py-5">
       <div className="flex items-center gap-2.5 px-1.5">
@@ -59,11 +68,11 @@ export default function Sidebar({
       </div>
 
       <nav className="mt-7 flex flex-col gap-0.5">
-        {NAV.slice(0, 6).map((item) => (
+        {top.map((item) => (
           <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
         ))}
         <div className="my-3.5 border-t border-line/70" />
-        {NAV.slice(6).map((item) => (
+        {bottom.map((item) => (
           <NavRow key={item.href} item={item} active={path === item.href} pendingCount={pendingCount} />
         ))}
       </nav>

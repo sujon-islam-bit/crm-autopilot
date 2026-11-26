@@ -7,7 +7,72 @@ import { applyProposal, rejectProposal, undoProposal, newBatchId, type EditRow }
 import { categoryFor } from "./category";
 import { runEngineForWorkspace } from "./engine";
 import { encryptJson } from "./crypto";
+import { can, hasTeamScope, normalizeRole, ownsDeal } from "./permissions";
 import type { Prisma } from "../generated/prisma/client";
+
+// ---------- Role enforcement (Settings → Team) ----------
+// Every mutating action below passes through these gates. `can()` is the
+// role check; the scope helpers add the Sales Rep rule (own records only).
+
+const DECIDE_DENIED = "Your role can't decide proposals — ask the Owner or an Admin";
+const SCOPE_DENIED = "That record isn't assigned to you — your role only covers your own deals";
+
+async function decideGate(
+  workspaceId: string,
+  user: { name?: string | null },
+  role: string,
+  proposalId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!can(role, "proposals.decide")) return { ok: false, error: DECIDE_DENIED };
+  if (hasTeamScope(role)) return { ok: true };
+  const p = await prisma.proposal.findFirst({
+    where: { id: proposalId, workspaceId },
+    select: { dealExternalId: true },
+  });
+  if (!p) return { ok: false, error: "Proposal not found" };
+  if (!p.dealExternalId) {
+    return { ok: false, error: "This suggestion isn't tied to one of your deals — a Manager or Admin needs to decide it" };
+  }
+  const deal = await prisma.crmDeal.findFirst({
+    where: { workspaceId, externalId: p.dealExternalId },
+    select: { ownerName: true },
+  });
+  if (!deal || !ownsDeal(user.name, deal.ownerName)) return { ok: false, error: SCOPE_DENIED };
+  return { ok: true };
+}
+
+/** Filter a bulk id list down to what this role may decide. */
+async function filterDecidable(
+  workspaceId: string,
+  user: { name?: string | null },
+  role: string,
+  ids: string[],
+): Promise<string[]> {
+  if (!can(role, "proposals.decide")) return [];
+  if (hasTeamScope(role)) return ids;
+  const out: string[] = [];
+  for (const id of ids) {
+    const g = await decideGate(workspaceId, user, role, id);
+    if (g.ok) out.push(id);
+  }
+  return out;
+}
+
+async function dealWriteGate(
+  workspaceId: string,
+  user: { name?: string | null },
+  role: string,
+  dealExternalId?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!can(role, "deals.write")) return { ok: false, error: "Your role is read-only — you can't change records" };
+  if (hasTeamScope(role) || !dealExternalId) return { ok: true };
+  const deal = await prisma.crmDeal.findFirst({
+    where: { workspaceId, externalId: dealExternalId },
+    select: { ownerName: true },
+  });
+  if (!deal || !ownsDeal(user.name, deal.ownerName)) return { ok: false, error: SCOPE_DENIED };
+  return { ok: true };
+}
 
 function refresh() {
   for (const p of ["/dashboard", "/approvals", "/pipeline", "/hygiene", "/deals", "/activity"]) {
@@ -16,21 +81,27 @@ function refresh() {
 }
 
 export async function approveAction(id: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  const gate = await decideGate(workspace.id, user, role, id);
+  if (!gate.ok) return gate;
   const r = await applyProposal(workspace.id, id, user.id, undefined, newBatchId());
   refresh();
   return r;
 }
 
 export async function rejectAction(id: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  const gate = await decideGate(workspace.id, user, role, id);
+  if (!gate.ok) return gate;
   const r = await rejectProposal(workspace.id, id, user.id);
   refresh();
   return r;
 }
 
 export async function undoAction(id: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  const gate = await decideGate(workspace.id, user, role, id);
+  if (!gate.ok) return gate;
   const r = await undoProposal(workspace.id, id, user.id);
   refresh();
   return r;
@@ -38,17 +109,21 @@ export async function undoAction(id: string) {
 
 /** Approve with user-edited proposed values (Edit Before Approval). */
 export async function approveEditedAction(id: string, edits: EditRow[]) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  const gate = await decideGate(workspace.id, user, role, id);
+  if (!gate.ok) return gate;
   const r = await applyProposal(workspace.id, id, user.id, edits, newBatchId());
   refresh();
   return r;
 }
 
 export async function approveManyAction(ids: string[]) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "proposals.decide")) return { ok: false, applied: 0, error: DECIDE_DENIED };
+  const allowed = await filterDecidable(workspace.id, user, role, ids.slice(0, 100));
   const batchId = newBatchId();
   let applied = 0;
-  for (const id of ids.slice(0, 100)) {
+  for (const id of allowed) {
     const r = await applyProposal(workspace.id, id, user.id, undefined, batchId);
     if (r.ok) applied++;
   }
@@ -57,9 +132,11 @@ export async function approveManyAction(ids: string[]) {
 }
 
 export async function rejectManyAction(ids: string[]) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "proposals.decide")) return { ok: false, rejected: 0, error: DECIDE_DENIED };
+  const allowed = await filterDecidable(workspace.id, user, role, ids.slice(0, 100));
   let rejected = 0;
-  for (const id of ids.slice(0, 100)) {
+  for (const id of allowed) {
     const r = await rejectProposal(workspace.id, id, user.id);
     if (r.ok) rejected++;
   }
@@ -69,16 +146,23 @@ export async function rejectManyAction(ids: string[]) {
 
 /** Header "Approve All (n)" — applies every pending proposal in the workspace. */
 export async function approveAllAction() {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "proposals.decide")) return { ok: false, applied: 0, error: DECIDE_DENIED };
   const pending = await prisma.proposal.findMany({
     where: { workspaceId: workspace.id, status: "pending" },
     orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
     select: { id: true },
   });
+  const allowed = await filterDecidable(
+    workspace.id,
+    user,
+    role,
+    pending.map((p) => p.id),
+  );
   let applied = 0;
   const batchId = newBatchId();
-  for (const p of pending) {
-    const r = await applyProposal(workspace.id, p.id, user.id, undefined, batchId);
+  for (const id of allowed) {
+    const r = await applyProposal(workspace.id, id, user.id, undefined, batchId);
     if (r.ok) applied++;
   }
   refresh();
@@ -93,13 +177,21 @@ export async function approveAllAction() {
  * the batch rollback itself.
  */
 export async function rollbackBatchAction(batchId: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "proposals.decide")) return { ok: false, error: DECIDE_DENIED };
   const proposals = await prisma.proposal.findMany({
     where: { workspaceId: workspace.id, batchId, status: "applied" },
     orderBy: { appliedAt: "desc" },
     select: { id: true, appliedAt: true },
   });
   if (proposals.length === 0) return { ok: false, error: "Nothing applied in this batch to roll back" };
+  if (!hasTeamScope(role)) {
+    // A Sales Rep may only roll back a batch made entirely of their own deals.
+    for (const p of proposals) {
+      const g = await decideGate(workspace.id, user, role, p.id);
+      if (!g.ok) return { ok: false, error: "This batch includes changes outside your own deals" };
+    }
+  }
   const latest = proposals.reduce<Date | null>(
     (max, p) => (p.appliedAt && (!max || p.appliedAt > max) ? p.appliedAt : max),
     null,
@@ -122,14 +214,20 @@ export async function rollbackBatchAction(batchId: string) {
 }
 
 export async function runEngineAction() {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "engine.run")) {
+    return { proposals: 0, processed: 0, error: "Your role can't run a scan — ask the Owner or an Admin" };
+  }
   const r = await runEngineForWorkspace(workspace.id);
   refresh();
   return r;
 }
 
 export async function addNoteAction(form: FormData) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (normalizeRole(role) === "viewer") {
+    return { ok: false, proposals: 0, error: "Your role is read-only — you can't add notes" };
+  }
   const kind = String(form.get("kind") || "call");
   const title = String(form.get("title") || "Pasted note").slice(0, 200);
   const body = String(form.get("body") || "").slice(0, 8000);
@@ -151,8 +249,11 @@ export async function addNoteAction(form: FormData) {
   return { ok: true, proposals: r.proposals, error: r.error };
 }
 
+const HYGIENE_DENIED = "Only the Owner or an Admin can propose clean-ups from Data Cleanup";
+
 export async function proposeFixAction(kind: string, label: string, dealExternalId: string | null) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "hygiene.propose")) return { ok: false, error: HYGIENE_DENIED };
   const titles: Record<string, string> = {
     duplicate: `Merge duplicate: ${label}`,
     missing: `Fill missing fields: ${label}`,
@@ -182,7 +283,8 @@ export async function proposeFixAction(kind: string, label: string, dealExternal
 // is applied from Data Cleanup directly (the product's trust rule).
 
 export async function proposeMergeAction(masterId: string, duplicateId: string) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "hygiene.propose")) return { ok: false, error: HYGIENE_DENIED };
   if (masterId === duplicateId) return { ok: false, error: "Pick two different records" };
   const [master, dup] = await Promise.all([
     prisma.crmContact.findFirst({ where: { id: masterId, workspaceId: workspace.id } }),
@@ -228,7 +330,8 @@ export async function proposeMergeAction(masterId: string, duplicateId: string) 
 }
 
 export async function proposeMissingFixAction(contactId: string) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "hygiene.propose")) return { ok: false, error: HYGIENE_DENIED };
   const contact = await prisma.crmContact.findFirst({ where: { id: contactId, workspaceId: workspace.id } });
   if (!contact) return { ok: false, error: "Contact not found" };
   // Re-derive the suggestion server-side — the only honest source the
@@ -280,7 +383,13 @@ export async function proposeMissingFixAction(contactId: string) {
 }
 
 export async function proposeStaleFollowupAction(dealExternalId: string) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  // Reachable from Data Cleanup (Owner/Admin) and from a deal's Insights
+  // tab (any record-writing role, scoped for Sales Reps).
+  if (!can(role, "hygiene.propose")) {
+    const gate = await dealWriteGate(workspace.id, user, role, dealExternalId);
+    if (!gate.ok) return gate;
+  }
   const deal = await prisma.crmDeal.findFirst({ where: { workspaceId: workspace.id, externalId: dealExternalId } });
   if (!deal) return { ok: false, error: "Deal not found" };
   const already = await prisma.proposal.findFirst({
@@ -326,7 +435,8 @@ export async function proposeStaleFollowupAction(dealExternalId: string) {
 }
 
 export async function proposeLogEntryAction(captureId: string) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "hygiene.propose")) return { ok: false, error: HYGIENE_DENIED };
   const capture = await prisma.capture.findFirst({ where: { id: captureId, workspaceId: workspace.id } });
   if (!capture) return { ok: false, error: "Meeting not found" };
   const already = await prisma.proposal.findFirst({
@@ -365,7 +475,10 @@ export async function saveGuardrailsAction(input: {
   detectDuplicates: boolean;
   flagSuspicious: boolean;
 }) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "guardrails.write")) {
+    return { ok: false, error: "Only the Owner or an Admin can change Data Guardrails" };
+  }
   const { countDuplicateExtras } = await import("./hygiene");
   const existing = await prisma.guardrailSetting.findUnique({ where: { workspaceId: workspace.id } });
   const wasEffectiveDetect = (existing?.enabled ?? true) && (existing?.detectDuplicates ?? true);
@@ -404,7 +517,7 @@ export async function saveProfileAction(form: FormData) {  const { user } = awai
 
 export async function saveWorkspaceAction(form: FormData) {
   const { workspace, role } = await requireWorkspace();
-  if (role !== "owner" && role !== "admin") return { ok: false, error: "Owner or admin only" };
+  if (!can(role, "settings.write")) return { ok: false, error: "Owner or admin only" };
   const name = String(form.get("name") || "").trim();
   if (name) await prisma.workspace.update({ where: { id: workspace.id }, data: { name } });
   revalidatePath("/settings");
@@ -413,7 +526,9 @@ export async function saveWorkspaceAction(form: FormData) {
 }
 
 export async function signatureAction(dealExternalId: string) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  const gate = await dealWriteGate(workspace.id, user, role, dealExternalId);
+  if (!gate.ok) return { ok: false, configured: false, sent: false, error: gate.error };
   const deal = await prisma.crmDeal.findFirst({ where: { workspaceId: workspace.id, externalId: dealExternalId } });
   if (!deal) return { ok: false, configured: false, sent: false };
   const { signudocConfigured, signudocCreateEnvelope } = await import("./signudoc");
@@ -467,7 +582,8 @@ export async function createDealAction(input: {
   stage: string;
   closeDate: string;
 }) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "deals.write")) return { ok: false, error: "Your role is read-only — you can't create records" };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the deal a name" };
   const amount = input.amount.trim() ? Number(input.amount) : null;
@@ -506,7 +622,8 @@ export async function createContactAction(input: {
   title: string;
   company: string;
 }) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "deals.write")) return { ok: false, error: "Your role is read-only — you can't create records" };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the contact a name" };
   const email = input.email.trim();
@@ -534,7 +651,8 @@ export async function createContactAction(input: {
 }
 
 export async function createAccountAction(input: { name: string; industry: string }) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "deals.write")) return { ok: false, error: "Your role is read-only — you can't create records" };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the account a company name" };
   const existing = await prisma.crmAccount.findFirst({ where: { workspaceId: workspace.id, name } });
@@ -555,7 +673,10 @@ export async function createAccountAction(input: { name: string; industry: strin
   return { ok: true, id: account.id };
 }
 
-export async function disconnectAction(provider: string) {  const { workspace, user } = await requireWorkspace();
+const CONNECTIONS_DENIED = "Only the Owner or an Admin can manage connections";
+
+export async function disconnectAction(provider: string) {  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "connections.write")) return { ok: false, error: CONNECTIONS_DENIED };
   await prisma.connection.deleteMany({ where: { workspaceId: workspace.id, provider } });
   const { audit } = await import("./audit");
   await audit(workspace.id, "disconnected", `Disconnected ${provider}`, { userId: user.id });
@@ -583,7 +704,8 @@ export async function saveConnectionAppSettingsAction(
   appId: string,
   patch: { permissions?: Record<string, boolean>; syncFrequency?: string },
 ) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, role } = await requireWorkspace();
+  if (!can(role, "connections.write")) return { ok: false, error: CONNECTIONS_DENIED };
   const { appById } = await import("./catalog");
   const app = appById(appId);
   if (!app) return { ok: false, error: "Unknown app" };
@@ -610,7 +732,8 @@ export async function saveConnectionAppSettingsAction(
  *  "Check for updates", then stamps the connection's lastSyncAt and writes
  *  a "synced" audit row. */
 export async function syncNowConnectionAction(provider: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "connections.write")) return { ok: false, error: CONNECTIONS_DENIED };
   const { PROVIDER_NAMES } = await import("./catalog");
   const label = PROVIDER_NAMES[provider] ?? provider;
   const conn = await prisma.connection.findFirst({
@@ -631,7 +754,8 @@ export async function syncNowConnectionAction(provider: string) {
  *  in settings) and writes a "connected" audit row. No fake OAuth — the
  *  stored credentials are untouched. */
 export async function reconnectConnectionAction(provider: string) {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, role } = await requireWorkspace();
+  if (!can(role, "connections.write")) return { ok: false, error: CONNECTIONS_DENIED };
   const { PROVIDER_NAMES } = await import("./catalog");
   const label = PROVIDER_NAMES[provider] ?? provider;
   const conn = await prisma.connection.findFirst({

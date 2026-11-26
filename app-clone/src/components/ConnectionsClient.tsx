@@ -442,7 +442,14 @@ function SetupPanel({ app, onClose }: { app: CatalogApp; onClose: () => void }) 
 
 /* ---------------- page ---------------- */
 
-export default function ConnectionsClient({ data }: { data: ConnectionsData }) {
+export default function ConnectionsClient({
+  data,
+  canManage = true,
+}: {
+  data: ConnectionsData;
+  /** Role gate (Settings → Team): only Owner/Admin manage connections. */
+  canManage?: boolean;
+}) {
   const [filter, setFilter] = useState<"all" | "connected" | "available">("all");
   const [manageId, setManageId] = useState<string | null>(null);
   const [setupId, setSetupId] = useState<string | null>(null);
@@ -478,12 +485,14 @@ export default function ConnectionsClient({ data }: { data: ConnectionsData }) {
           <h1 className="text-[26px] font-extrabold tracking-tight">Connections</h1>
           <p className="mt-0.5 text-[13.5px] text-muted">Connect your tools and let CleanPipe work across them.</p>
         </div>
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="btn-violet flex items-center gap-1.5 px-4 py-2.5 text-[13.5px]"
-        >
-          <I n="plus" size={15} sw={2.4} /> Connect New Integration
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="btn-violet flex items-center gap-1.5 px-4 py-2.5 text-[13.5px]"
+          >
+            <I n="plus" size={15} sw={2.4} /> Connect New Integration
+          </button>
+        )}
       </div>
 
       {/* stat cards */}
@@ -606,12 +615,16 @@ export default function ConnectionsClient({ data }: { data: ConnectionsData }) {
                       <span className="flex items-center gap-1.5 text-[12px] text-muted">
                         <I n="sync" size={13} /> Last sync: {app.lastSyncAgo ?? "—"}
                       </span>
-                      <button
-                        onClick={() => setManageId(app.id)}
-                        className="flex items-center gap-1 text-[12.5px] font-semibold text-violet hover:text-violet-dark"
-                      >
-                        Manage <I n="arrowR" size={13} />
-                      </button>
+                      {canManage ? (
+                        <button
+                          onClick={() => setManageId(app.id)}
+                          className="flex items-center gap-1 text-[12.5px] font-semibold text-violet hover:text-violet-dark"
+                        >
+                          Manage <I n="arrowR" size={13} />
+                        </button>
+                      ) : (
+                        <span className="text-[12px] text-faint">Owner/Admin only</span>
+                      )}
                     </>
                   ) : (
                     <>

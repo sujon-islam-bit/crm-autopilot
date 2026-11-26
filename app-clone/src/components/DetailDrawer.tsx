@@ -11,10 +11,15 @@ export default function DetailDrawer({
   view,
   onClose,
   overlay = false,
+  canDecide = true,
 }: {
   view: ProposalView;
   onClose: () => void;
   overlay?: boolean;
+  /** False for roles without proposals.decide on this proposal (Viewer, or
+   *  a Sales Rep outside their own deals): the Approve & Sync / Reject
+   *  buttons are replaced by a read-only note. Server enforces the same. */
+  canDecide?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -49,7 +54,12 @@ export default function DetailDrawer({
         </button>
       </div>
 
-      {view.status === "pending" ? (
+      {view.status === "pending" && !canDecide ? (
+        <div className="mt-3.5 rounded-[10px] bg-canvas px-3.5 py-2.5 text-[12.5px] leading-relaxed font-medium text-ink2">
+          Your role is read-only here — you can review this suggestion, but only a teammate with
+          approval rights can act on it.
+        </div>
+      ) : view.status === "pending" ? (
         <div className="mt-3.5 flex gap-2.5">
           <button
             onClick={approve}

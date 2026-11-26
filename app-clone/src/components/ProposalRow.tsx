@@ -30,6 +30,7 @@ export default function ProposalRow({
   onSelect,
   wrap = false,
   menu = false,
+  canDecide = true,
 }: {
   view: ProposalView;
   first?: boolean;
@@ -41,6 +42,11 @@ export default function ProposalRow({
    *  plain select button (Approvals page). The dashboard keeps the plain
    *  button so its approved behaviour is unchanged. */
   menu?: boolean;
+  /** False for roles without proposals.decide on this row (Viewer, or a
+   *  Sales Rep outside their own deals): the write actions (Approve /
+   *  Ignore) are not rendered at all — read actions (Preview / Review)
+   *  stay. The server enforces the same rule; this is the UI mirror. */
+  canDecide?: boolean;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -91,7 +97,7 @@ export default function ProposalRow({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {view.cta !== "review" && (
+        {canDecide && view.cta !== "review" && (
           <button onClick={approve} disabled={busy} className="btn-primary px-3.5 py-[7px] text-[12.5px] disabled:opacity-60">
             Approve
           </button>
@@ -101,7 +107,7 @@ export default function ProposalRow({
             Preview
           </button>
         )}
-        {view.cta === "approve-ignore" && (
+        {canDecide && view.cta === "approve-ignore" && (
           <button onClick={ignore} disabled={busy} className="btn-outline px-3.5 py-[7px] text-[12.5px] disabled:opacity-60">
             Ignore
           </button>
@@ -144,13 +150,15 @@ export default function ProposalRow({
             >
               Review details
             </button>
-            <button
-              onClick={ignore}
-              disabled={busy}
-              className="flex w-full items-center rounded-lg px-3 py-2 text-left text-[13px] font-medium text-ink2 hover:bg-canvas disabled:opacity-60"
-            >
-              Ignore
-            </button>
+            {canDecide && (
+              <button
+                onClick={ignore}
+                disabled={busy}
+                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-[13px] font-medium text-ink2 hover:bg-canvas disabled:opacity-60"
+              >
+                Ignore
+              </button>
+            )}
           </span>
         </>
       )}

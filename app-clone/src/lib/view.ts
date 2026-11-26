@@ -52,6 +52,9 @@ export type ProposalView = {
   conflicts: string[];
   dealExternalId: string | null;
   cta: "approve-preview" | "approve-ignore" | "review";
+  /** Set by the Approvals page when the workspace's confidence threshold
+   *  (Settings → AI Preferences) is above this proposal's confidence. */
+  belowThreshold?: boolean;
   diffRows: DiffRow[];
   requiredOk: boolean;
   cascade: CascadeRow[];

@@ -89,12 +89,16 @@ export default function QueueRow({
   checked,
   onSelect,
   onToggleCheck,
+  canSelect = true,
 }: {
   view: ProposalView;
   selected: boolean;
   checked: boolean;
   onSelect: (v: ProposalView) => void;
   onToggleCheck: (id: string) => void;
+  /** False for roles with no bulk actions (Viewer): the select checkbox
+   *  is not rendered — there is nothing they could do with a selection. */
+  canSelect?: boolean;
 }) {
   return (
     <div
@@ -104,7 +108,9 @@ export default function QueueRow({
         selected ? "bg-violet-soft hover:bg-violet-soft" : ""
       }`}
     >
-      <RowCheckbox checked={checked} onToggle={() => onToggleCheck(view.id)} label={`Select: ${view.title}`} />
+      {canSelect && (
+        <RowCheckbox checked={checked} onToggle={() => onToggleCheck(view.id)} label={`Select: ${view.title}`} />
+      )}
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] ${TILE_STYLES[view.iconKind]}`}>
         <I n={view.iconKind === "mailOpen" ? "mail" : view.iconKind} size={19} sw={1.9} />
       </span>
@@ -115,6 +121,11 @@ export default function QueueRow({
         </div>
       </div>
       <BarsPill value={view.confidence} />
+      {view.belowThreshold && (
+        <span className="inline-flex shrink-0 items-center rounded-full bg-amber-tint px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap text-amber">
+          Below threshold
+        </span>
+      )}
       <span className="flex shrink-0 items-center gap-1 text-[12px] whitespace-nowrap text-faint">
         <I n="clock" size={13} />
         {timeAgo(view.createdAt)}

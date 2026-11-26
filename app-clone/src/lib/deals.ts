@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "./db";
-import { fmtDate, timeAgo, daysSilent } from "./constants";
+import { fmtDate, timeAgo, daysSilent, moneyShort } from "./constants";
 import { effectiveHealth } from "./health";
 import { computeCloseLikelihood, STAGE_ORDER, type DealInsightResult } from "./insight";
 import { getPipelineData, resolvePeriod, type KpiDelta } from "./pipeline";
@@ -134,9 +134,9 @@ function pctDelta(cur: number, base: number): KpiDelta {
   return { dir: pct > 0 ? "up" : "down", text: `${pct > 0 ? "+" : "−"}${Math.abs(pct)}%` };
 }
 
-export async function getDealsData(workspaceId: string) {
+export async function getDealsData(workspaceId: string, scopeOwnerName?: string) {
   const now = new Date();
-  const [pipeline, deals, contacts, accountsTable, proposals, signatures, audits, connections] =
+  let [pipeline, deals, contacts, accountsTable, proposals, signatures, audits, connections] =
     await Promise.all([
       getPipelineData(workspaceId, resolvePeriod({ period: "30" })),
       prisma.crmDeal.findMany({ where: { workspaceId }, orderBy: { amount: "desc" } }),
@@ -151,6 +151,29 @@ export async function getDealsData(workspaceId: string) {
       prisma.auditEvent.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" } }),
       prisma.connection.findMany({ where: { workspaceId } }),
     ]);
+
+  // Sales Rep scope (Settings → Team): the page only ever shows records
+  // tied to deals the rep owns — every list/stat below derives from these
+  // filtered arrays, so nothing outside the scope can leak through.
+  const scoped = scopeOwnerName !== undefined;
+  if (scoped) {
+    const owner = (scopeOwnerName ?? "").trim().toLowerCase();
+    deals = deals.filter((d) => (d.ownerName ?? "").trim().toLowerCase() === owner && owner !== "");
+    const dealIds = new Set(deals.map((d) => d.externalId));
+    const companies = new Set(deals.map((d) => d.company).filter((c): c is string => Boolean(c)));
+    contacts = contacts.filter((c) => c.company != null && companies.has(c.company));
+    accountsTable = accountsTable.filter((a) => companies.has(a.name));
+    proposals = proposals.filter((p) => p.dealExternalId != null && dealIds.has(p.dealExternalId));
+    signatures = signatures.filter((s) => dealIds.has(s.dealExternalId));
+    const propIds = new Set(proposals.map((p) => p.id));
+    audits = audits.filter((a) => {
+      const meta = (a.meta ?? {}) as Record<string, unknown>;
+      return (
+        (typeof meta.proposalId === "string" && propIds.has(meta.proposalId)) ||
+        (typeof meta.dealExternalId === "string" && dealIds.has(meta.dealExternalId))
+      );
+    });
+  }
 
   // ---- company facts: industry (mode of its contacts' industries, else
   // the hand-created account row) + first-seen date ----
@@ -235,6 +258,26 @@ export async function getDealsData(workspaceId: string) {
       spark: kpiByKey.get("won")?.spark ?? [],
     },
   ];
+
+  // Scoped (Sales Rep) stat cards: the Pipeline KPIs are workspace-wide,
+  // so the three deal cards are recomputed from the scoped deals instead.
+  if (scoped) {
+    const openSum = deals
+      .filter((d) => !TERMINAL.includes(d.stage))
+      .reduce((s, d) => s + (d.amount ?? 0), 0);
+    const byKey = new Map(stats.map((s) => [s.key, s]));
+    const dealsCard = byKey.get("deals");
+    if (dealsCard) Object.assign(dealsCard, { value: String(deals.length), delta: null, spark: [] });
+    const valueCard = byKey.get("value");
+    if (valueCard) Object.assign(valueCard, { value: moneyShort(openSum), delta: null, spark: [] });
+    const wonCard = byKey.get("won");
+    if (wonCard)
+      Object.assign(wonCard, {
+        value: String(deals.filter((d) => d.stage === "Won").length),
+        delta: null,
+        spark: [],
+      });
+  }
 
   // ---- per-deal assembly ----
   const propsByDeal = new Map<string, typeof proposals>();

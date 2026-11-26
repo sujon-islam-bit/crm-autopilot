@@ -74,10 +74,14 @@ model Workspace {
   plan        String   @default("trial")
   healthScore Int?
   healthDelta Int?
+  // Workspace-scoped settings: { companyName, location, confidenceThreshold,
+  // analysisFocus, dataRetentionMonths } — written from Settings.
+  settings    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   memberships Membership[]
+  invites     Invite[]
   connections Connection[]
   deals       CrmDeal[]
   contacts    CrmContact[]
@@ -100,12 +104,34 @@ model Membership {
   // Optional display override for the shell's role line (the demo persona
   // stores "RevOps Admin"); null → the label is derived from `role`.
   roleLabel   String?
+  // Per-user preferences inside this workspace (Settings → Notifications):
+  // { emailNotifications, slackNotifications, approvalReminders, syncAlerts, frequency }
+  settings    Json?
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@map("membership")
+}
+
+// A pending team invitation. The invitee accepts via /invite/<token> after
+// signing in with the invited email; accepting creates the Membership with
+// the invited role. A pending invite reserves a seat (per-seat pricing).
+model Invite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  email       String
+  role        String // owner | admin | manager | rep | viewer (owner is never invitable)
+  token       String   @unique
+  status      String   @default("pending") // pending | accepted | revoked
+  expiresAt   DateTime
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("invite")
 }
 
 model Connection {

@@ -101,9 +101,24 @@ const selectCls =
 const inputCls =
   "w-full rounded-lg border border-line bg-white px-3 py-[8px] text-[13px] text-ink outline-none focus:border-violet";
 
-export default function DealsClient({ data, stages }: { data: Data; stages: string[] }) {
+export default function DealsClient({
+  data,
+  stages,
+  canWrite = true,
+  scopedToOwn = false,
+  initialTab = "deals",
+}: {
+  data: Data;
+  stages: string[];
+  /** Role gate (Settings → Team): Viewers browse read-only. */
+  canWrite?: boolean;
+  /** Sales Rep: only their own records are loaded. */
+  scopedToOwn?: boolean;
+  /** Deep link (e.g. the dashboard's Stalled Deals card → ?tab=atrisk). */
+  initialTab?: TabKey;
+}) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("deals");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const [query, setQuery] = useState("");
   const [fStage, setFStage] = useState("any");
   const [fOwner, setFOwner] = useState("any");
@@ -314,12 +329,18 @@ export default function DealsClient({ data, stages }: { data: Data; stages: stri
             <p className="mt-1 text-[13.5px] text-muted">
               View and manage your CRM records with AI-powered insights.
             </p>
+            {scopedToOwn && (
+              <p className="mt-1.5 inline-flex rounded-full bg-violet-tint px-2.5 py-[3px] text-[11.5px] font-bold text-violet">
+                Showing your own deals only
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
             <button onClick={exportCsv} className="btn-outline flex items-center gap-2 px-3.5 py-[8px] text-[13px] font-semibold">
               <I n="download" size={14} sw={2.2} />
               Export
             </button>
+            {canWrite && (
             <div className="relative">
               <button
                 onClick={() => setNewMenu((v) => !v)}
@@ -352,6 +373,7 @@ export default function DealsClient({ data, stages }: { data: Data; stages: stri
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
 
@@ -546,20 +568,22 @@ export default function DealsClient({ data, stages }: { data: Data; stages: stri
                   <thead>
                     <tr className="border-b border-line bg-[#fafaff] text-left text-[11.5px] tracking-wide text-muted uppercase">
                       <th className="w-9 px-3 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label="Select all on page"
-                          checked={(tab === "deals" ? dealsPage : atriskPage).length > 0 && (tab === "deals" ? dealsPage : atriskPage).every((r) => checked.has(r.id))}
-                          onChange={(e) => {
-                            const rows = tab === "deals" ? dealsPage : atriskPage;
-                            setChecked((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) rows.forEach((r) => next.add(r.id));
-                              else rows.forEach((r) => next.delete(r.id));
-                              return next;
-                            });
-                          }}
-                        />
+                        {canWrite && (
+                          <input
+                            type="checkbox"
+                            aria-label="Select all on page"
+                            checked={(tab === "deals" ? dealsPage : atriskPage).length > 0 && (tab === "deals" ? dealsPage : atriskPage).every((r) => checked.has(r.id))}
+                            onChange={(e) => {
+                              const rows = tab === "deals" ? dealsPage : atriskPage;
+                              setChecked((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) rows.forEach((r) => next.add(r.id));
+                                else rows.forEach((r) => next.delete(r.id));
+                                return next;
+                              });
+                            }}
+                          />
+                        )}
                       </th>
                       <th className="px-3 py-3 font-semibold">Deal Name</th>
                       <th className="px-3 py-3 font-semibold">Company</th>
@@ -579,7 +603,9 @@ export default function DealsClient({ data, stages }: { data: Data; stages: stri
                         className={`cursor-pointer hover:bg-[#fafaff] ${selected?.type === "deal" && selected.id === r.id ? "bg-violet-soft" : ""}`}
                       >
                         <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" aria-label={`Select ${r.name}`} checked={checked.has(r.id)} onChange={() => toggleCheck(r.id)} />
+                          {canWrite && (
+                            <input type="checkbox" aria-label={`Select ${r.name}`} checked={checked.has(r.id)} onChange={() => toggleCheck(r.id)} />
+                          )}
                         </td>
                         <td className="max-w-[230px] px-3 py-3">
                           <span className="flex items-center gap-2.5">
@@ -646,9 +672,11 @@ export default function DealsClient({ data, stages }: { data: Data; stages: stri
                               <button onClick={() => selectDeal(r)} className="block w-full px-3.5 py-2.5 text-left text-[12.5px] font-medium text-ink2 hover:bg-canvas">
                                 View details
                               </button>
-                              <button onClick={() => sendSignature(r)} className="block w-full px-3.5 py-2.5 text-left text-[12.5px] font-medium text-ink2 hover:bg-canvas">
-                                Send for signature
-                              </button>
+                              {canWrite && (
+                                <button onClick={() => sendSignature(r)} className="block w-full px-3.5 py-2.5 text-left text-[12.5px] font-medium text-ink2 hover:bg-canvas">
+                                  Send for signature
+                                </button>
+                              )}
                               <Link href="/pipeline" className="block px-3.5 py-2.5 text-[12.5px] font-medium text-ink2 hover:bg-canvas">
                                 Open in Pipeline
                               </Link>

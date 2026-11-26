@@ -3,12 +3,14 @@ import { connection } from "next/server";
 import { requireWorkspace } from "../../../lib/session";
 import { prisma } from "../../../lib/db";
 import { toProposalView } from "../../../lib/view";
+import { can, normalizeRole } from "../../../lib/permissions";
+import { parseWorkspaceSettings } from "../../../lib/settings";
 import ApprovalsClient from "../../../components/ApprovalsClient";
 
 async function Inner() {
   await connection();
-  const { workspace, user } = await requireWorkspace();
-  const [pendingRows, decidedRows, decidedTotal, connectionCount, contacts, deals] = await Promise.all([
+  const { workspace, user, role } = await requireWorkspace();
+  const [pendingAll, decidedAll, decidedTotalAll, connectionCount, contacts, deals, wsRow] = await Promise.all([
     prisma.proposal.findMany({
       where: { workspaceId: workspace.id, status: "pending" },
       include: { capture: true },
@@ -23,7 +25,28 @@ async function Inner() {
     prisma.connection.count({ where: { workspaceId: workspace.id } }),
     prisma.crmContact.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.crmDeal.findMany({ where: { workspaceId: workspace.id } }),
+    prisma.workspace.findUnique({ where: { id: workspace.id }, select: { settings: true } }),
   ]);
+
+  // Sales Rep scope: only suggestions tied to deals they own are visible
+  // (and decidable — the server actions enforce the same rule).
+  const isRep = normalizeRole(role) === "rep";
+  const ownDealIds = new Set(
+    deals.filter((d) => d.ownerName && user.name && d.ownerName.trim().toLowerCase() === user.name.trim().toLowerCase()).map((d) => d.externalId),
+  );
+  const inScope = (p: { dealExternalId: string | null }) => !isRep || (p.dealExternalId != null && ownDealIds.has(p.dealExternalId));
+  const pendingRows = pendingAll.filter(inScope);
+  const decidedRows = decidedAll.filter(inScope);
+  const decidedTotal = isRep
+    ? await prisma.proposal.count({
+        where: {
+          workspaceId: workspace.id,
+          status: { not: "pending" },
+          dealExternalId: { in: [...ownDealIds] },
+        },
+      })
+    : decidedTotalAll;
+  const threshold = parseWorkspaceSettings(wsRow?.settings).confidenceThreshold;
 
   // Confidence descending, nulls last, newest first within a tier.
   pendingRows.sort((a, b) => {
@@ -67,7 +90,9 @@ async function Inner() {
     Promise.all(
       rows.map(async (p) => {
         const deal = p.dealExternalId ? (dealMap.get(p.dealExternalId) ?? null) : null;
-        return toProposalView(p, deal, { people: peopleFor(p), contactEmails, dealStages });
+        const view = await toProposalView(p, deal, { people: peopleFor(p), contactEmails, dealStages });
+        view.belowThreshold = view.confidence != null && view.confidence < threshold;
+        return view;
       }),
     );
 
@@ -77,6 +102,10 @@ async function Inner() {
       decided={await toViews(decidedRows)}
       decidedTotal={decidedTotal}
       connected={connectionCount > 0}
+      canDecide={can(role, "proposals.decide")}
+      canRunEngine={can(role, "engine.run")}
+      canAddNotes={normalizeRole(role) !== "viewer"}
+      scopedToOwn={isRep}
     />
   );
 }
