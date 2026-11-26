@@ -1,0 +1,233 @@
+// CRM Autopilot — database schema (Prisma ORM 7 + PostgreSQL)
+//
+// A multi-user SaaS: people sign up, create a workspace (their company),
+// invite their team, connect HubSpot + Google, and the AI keeps the CRM
+// updated — every change proposed first, approved by a human, and logged
+// so it can be undone. Auth models (user/session/account/verification)
+// follow the Better Auth layout; the rest is the product itself.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------ auth
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships Membership[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// -------------------------------------------------------------- product
+
+/// A company using the product. One workspace = one HubSpot portal.
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("trial") // trial | starter | growth
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships  Membership[]
+  connections  Connection[]
+  proposals    Proposal[]
+  auditEvents  AuditEvent[]
+  deals        CrmDeal[]
+  captures     Capture[]
+
+  @@map("workspace")
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        String    @default("member") // owner | admin | member
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, workspaceId])
+  @@map("membership")
+}
+
+/// One external account linked to a workspace: a HubSpot portal, a
+/// Google account (Gmail + Calendar), later SignuDoc / Outlook / Zoom.
+/// Tokens live AES-256-GCM encrypted in `data` (see src/lib/crypto.ts).
+model Connection {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// "hubspot" | "google" | "signudoc" | "outlook" | "zoom"
+  provider     String
+  /// The connected account's email / portal label, when known (display).
+  accountEmail String?
+  /// Encrypted JSON with the provider's tokens.
+  data         String    @db.Text
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([workspaceId, provider])
+  @@map("connection")
+}
+
+/// One change the AI wants to make. Nothing reaches the CRM until a
+/// human approves; approving applies it, and every applied change can
+/// be undone (the inverse is kept in `detail`).
+model Proposal {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// deal_stage | deal_field | new_contact | new_deal | followup_draft | task
+  type        String
+  /// Plain-English summary, e.g. "Move deal CloudFlow — $24,000 to Proposal".
+  title       String
+  /// Structured payload: target ids + before/after values (+ draft body).
+  detail      Json
+  /// Why the AI proposes this, in one or two plain sentences.
+  reason      String    @db.Text
+  /// Where the evidence came from: "gmail" | "calendar" | "signudoc" | "hubspot"
+  source      String
+  sourceRef   String?
+  /// pending | approved | rejected | applied | undone | failed
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+
+  auditEvents AuditEvent[]
+
+  @@index([workspaceId, status])
+  @@map("proposal")
+}
+
+/// A mirror of one HubSpot deal, synced into our DB so the Dashboard
+/// and Pipeline screens are fast and can carry AI health flags.
+/// The CRM stays the source of truth; this is a read-optimised copy.
+model CrmDeal {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// The deal's id in the CRM (HubSpot object id).
+  externalId     String
+  name           String
+  company        String?
+  /// Pipeline stage label, e.g. "Proposal sent".
+  stage          String
+  amount         Int?
+  currency       String    @default("USD")
+  ownerName      String?
+  lastActivityAt DateTime?
+  /// AI health flag: null | "going_cold" | "no_reply" | "promise_due"
+  healthFlag     String?
+  healthNote     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId, stage])
+  @@map("crm_deal")
+}
+
+/// One captured item from a connected source — an email or a calendar
+/// event — waiting for the AI engine to read it. `processedAt` is set
+/// once the engine has turned it into proposals (or decided it needs
+/// none). Captures are the engine's inbox; nothing here is shown as-is
+/// to the user except counts.
+model Capture {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// "email" | "meeting"
+  kind        String
+  /// The item's id in its source (Gmail message id, Calendar event id).
+  externalId  String
+  title       String
+  fromLabel   String?
+  snippet     String?   @db.Text
+  occurredAt  DateTime
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, kind, externalId])
+  @@index([workspaceId, processedAt])
+  @@map("capture")
+}
+
+/// The trust layer: every AI proposal, approval, applied change and
+/// undo lands here, in order, and is shown on the Activity screen.
+model AuditEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposalId  String?
+  proposal    Proposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  /// proposed | approved | rejected | applied | undone | failed | connected
+  action      String
+  summary     String
+  detail      Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@map("audit_event")
+}
