@@ -89,7 +89,7 @@ export default function DashboardClient({
           <StatCard
             icon="inbox"
             tile="bg-primary text-white"
-            label="Review Queue"
+            label="Approvals"
             value={String(stats.queueCount)}
             delta={<DeltaLine delta={stats.queueDelta} />}
             spark={<Sparkline data={stats.sparks.queue} color="#2b6bf0" />}

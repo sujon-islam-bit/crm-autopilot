@@ -151,6 +151,7 @@ model CrmContact {
   email       String?
   company     String?
   title       String?
+  industry    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -182,6 +183,7 @@ model Proposal {
   id             String    @id @default(cuid())
   workspaceId    String
   type           String // deal_stage | deal_field | new_contact | new_deal | followup_draft | task | hygiene_fix
+  category       String    @default("deal_update") // deal_update | new_contact | enrichment | followup | field_fix
   title          String
   detail         Json      @default("{}")
   reason         String    @default("")

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
 import { requireWorkspace } from "./session";
-import { applyProposal, rejectProposal, undoProposal } from "./apply";
+import { applyProposal, rejectProposal, undoProposal, type EditRow } from "./apply";
+import { categoryFor } from "./category";
 import { runEngineForWorkspace } from "./engine";
 import { encryptJson } from "./crypto";
 import type { Prisma } from "../generated/prisma/client";
@@ -33,6 +34,53 @@ export async function undoAction(id: string) {
   const r = await undoProposal(workspace.id, id, user.id);
   refresh();
   return r;
+}
+
+/** Approve with user-edited proposed values (Edit Before Approval). */
+export async function approveEditedAction(id: string, edits: EditRow[]) {
+  const { workspace, user } = await requireWorkspace();
+  const r = await applyProposal(workspace.id, id, user.id, edits);
+  refresh();
+  return r;
+}
+
+export async function approveManyAction(ids: string[]) {
+  const { workspace, user } = await requireWorkspace();
+  let applied = 0;
+  for (const id of ids.slice(0, 100)) {
+    const r = await applyProposal(workspace.id, id, user.id);
+    if (r.ok) applied++;
+  }
+  refresh();
+  return { ok: true, applied };
+}
+
+export async function rejectManyAction(ids: string[]) {
+  const { workspace, user } = await requireWorkspace();
+  let rejected = 0;
+  for (const id of ids.slice(0, 100)) {
+    const r = await rejectProposal(workspace.id, id, user.id);
+    if (r.ok) rejected++;
+  }
+  refresh();
+  return { ok: true, rejected };
+}
+
+/** Header "Approve All (n)" — applies every pending proposal in the workspace. */
+export async function approveAllAction() {
+  const { workspace, user } = await requireWorkspace();
+  const pending = await prisma.proposal.findMany({
+    where: { workspaceId: workspace.id, status: "pending" },
+    orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
+    select: { id: true },
+  });
+  let applied = 0;
+  for (const p of pending) {
+    const r = await applyProposal(workspace.id, p.id, user.id);
+    if (r.ok) applied++;
+  }
+  refresh();
+  return { ok: true, applied };
 }
 
 export async function runEngineAction() {
@@ -77,6 +125,7 @@ export async function proposeFixAction(kind: string, label: string, dealExternal
     data: {
       workspaceId: workspace.id,
       type: "hygiene_fix",
+      category: categoryFor("hygiene_fix", { kind }),
       title: titles[kind] ?? `Fix: ${label}`,
       detail: { kind, label } as Prisma.InputJsonValue,
       reason: "Created from Data Cleanup — review and approve to apply the cleanup.",
@@ -111,20 +160,48 @@ export async function saveWorkspaceAction(form: FormData) {
 export async function signatureAction(dealExternalId: string) {
   const { workspace } = await requireWorkspace();
   const deal = await prisma.crmDeal.findFirst({ where: { workspaceId: workspace.id, externalId: dealExternalId } });
-  if (!deal) return { ok: false };
-  const configured = Boolean(process.env.SIGNUDOC_BASE_URL && process.env.SIGNUDOC_API_KEY);
+  if (!deal) return { ok: false, configured: false, sent: false };
+  const { signudocConfigured, signudocCreateEnvelope } = await import("./signudoc");
+  const configured = signudocConfigured();
+  // The signer is the deal's primary contact when one is on record.
+  const contact = deal.company
+    ? await prisma.crmContact.findFirst({
+        where: { workspaceId: workspace.id, company: deal.company },
+        orderBy: { name: "asc" },
+      })
+    : null;
+  const signerName = contact?.name ?? deal.company ?? deal.name;
+  const signerEmail = contact?.email ?? "";
+  let envelopeId: string | null = null;
+  let sent = false;
+  if (configured) {
+    try {
+      const r = await signudocCreateEnvelope({
+        title: `Agreement — ${deal.name}`,
+        signerName,
+        signerEmail,
+        dealExternalId,
+      });
+      envelopeId = r.envelopeId || null;
+      sent = true;
+    } catch {
+      sent = false; // API failed — the request is still recorded, honestly as "requested"
+    }
+  }
   await prisma.signatureRequest.create({
     data: {
       workspaceId: workspace.id,
       dealExternalId,
       title: `Agreement — ${deal.name}`,
-      signerName: deal.company ?? deal.name,
-      signerEmail: "",
-      status: configured ? "sent" : "requested",
+      signerName,
+      signerEmail,
+      envelopeId,
+      status: sent ? "sent" : "requested",
     },
   });
   revalidatePath("/deals");
-  return { ok: true, configured };
+  revalidatePath("/pipeline");
+  return { ok: true, configured, sent };
 }
 
 export async function disconnectAction(provider: string) {

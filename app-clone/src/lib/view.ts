@@ -1,27 +1,56 @@
 import { money, fmtDate } from "./constants";
+import { categoryFor, type ProposalCategory } from "./category";
 
 type AnyRec = Record<string, unknown>;
 
-export type DiffRow = { field: string; current: string; proposed: string; pill?: boolean };
+export type DiffRow = {
+  field: string;
+  current: string;
+  proposed: string;
+  pill?: boolean;
+  /** Set when the user may edit this proposed value before approval. */
+  edit?: "stage" | "date" | "text" | "number";
+  /** ISO value for date rows (the input's value; `proposed` is display). */
+  iso?: string;
+};
 export type CascadeRow = { icon: "slack" | "chart" | "sync" | "mail" | "user"; text: string };
 export type Evidence = {
   kind: "call" | "email" | "chat";
   title: string;
   quote: string;
+  meta: string;
   duration?: string;
 } | null;
+
+export type IconKind =
+  | "building"
+  | "building2"
+  | "userPlus"
+  | "calendar"
+  | "mail"
+  | "shield"
+  | "users"
+  | "mailOpen";
 
 export type ProposalView = {
   id: string;
   type: string;
+  category: ProposalCategory;
+  iconKind: IconKind;
   title: string;
   confidence: number | null;
   status: string;
   reason: string;
+  description: string;
   createdAt: string;
   decidedAt: string | null;
   sourceLine: string | null;
   subline: string | null;
+  sourceTag: string;
+  sourceFull: string | null;
+  avatars: string[];
+  conflicts: string[];
+  dealExternalId: string | null;
   cta: "approve-preview" | "approve-ignore" | "review";
   diffRows: DiffRow[];
   requiredOk: boolean;
@@ -29,15 +58,26 @@ export type ProposalView = {
   evidence: Evidence;
 };
 
+export type ProposalViewCtx = {
+  /** People shown as monogram avatars on the row (owner, contact, …). */
+  people?: string[];
+  /** Lowercased emails of contacts already in the CRM (conflict check). */
+  contactEmails?: Set<string>;
+  /** Current stage per deal externalId (stale-proposal conflict check). */
+  dealStages?: Map<string, string>;
+};
+
 type ProposalLike = {
   id: string;
   type: string;
+  category?: string;
   title: string;
   confidence: number | null;
   status: string;
   reason: string;
   createdAt: Date;
   decidedAt?: Date | null;
+  dealExternalId?: string | null;
   detail: unknown;
   capture?: {
     kind: string;
@@ -66,9 +106,45 @@ const SOURCE_LABEL: Record<string, string> = {
   outlook: "Outlook",
 };
 
-export function toProposalView(p: ProposalLike, deal: DealLike): ProposalView {
+const SOURCE_TAG: Record<string, string> = {
+  zoom: "Zoom",
+  gmail: "Gmail",
+  chat: "WhatsApp",
+  calendar: "Meeting",
+  manual: "Call",
+  call: "Call",
+  support: "Gmail",
+};
+
+const EVIDENCE_LABEL: Record<string, string> = {
+  zoom: "Zoom Call",
+  gmail: "Gmail Thread",
+  chat: "WhatsApp",
+  calendar: "Meeting",
+  manual: "Call Notes",
+  call: "Call",
+  support: "Support Email",
+};
+
+export function toProposalView(
+  p: ProposalLike,
+  deal: DealLike,
+  ctx?: ProposalViewCtx,
+): ProposalView {
   const d = (p.detail ?? {}) as AnyRec;
   const s = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+  const category = (p.category as ProposalCategory | undefined) ?? categoryFor(p.type, d);
+
+  // ---- icon tile kind ----
+  let iconKind: IconKind = "building";
+  const seededIcon = s(d.iconKind) as IconKind | "";
+  if (seededIcon) iconKind = seededIcon;
+  else if (p.type === "new_contact") iconKind = "userPlus";
+  else if (p.type === "deal_field") iconKind = s(d.field) === "closeDate" ? "calendar" : "building2";
+  else if (p.type === "followup_draft") iconKind = "mail";
+  else if (p.type === "task") iconKind = "mailOpen";
+  else if (p.type === "hygiene_fix") iconKind = s(d.kind) === "merge" ? "users" : "building2";
 
   // ---- source line ----
   let sourceLine: string | null = s(d.sourceLine) || null;
@@ -92,24 +168,40 @@ export function toProposalView(p: ProposalLike, deal: DealLike): ProposalView {
       current: s(r.current),
       proposed: s(r.proposed),
       pill: Boolean(r.pill),
+      edit: (s(r.edit) || undefined) as DiffRow["edit"],
+      iso: s(r.iso) || undefined,
     }));
   } else if (p.type === "deal_stage") {
     diffRows = [
-      { field: "Stage", current: s(d.fromValue) || deal?.stage || "—", proposed: s(d.toValue), pill: true },
+      { field: "Stage", current: s(d.fromValue) || deal?.stage || "—", proposed: s(d.toValue), pill: true, edit: "stage" as const },
     ];
+    if (d.closeToValue)
+      diffRows.push({
+        field: "Close Date",
+        current: deal?.closeDate ? fmtDate(deal.closeDate) : "—",
+        proposed: fmtDate(s(d.closeToValue)),
+        edit: "date",
+        iso: s(d.closeToValue).slice(0, 10),
+      });
     if (deal?.amount != null)
       diffRows.push({ field: "Amount", current: money(deal.amount), proposed: money(deal.amount) });
-    if (deal?.closeDate)
+    if (deal?.closeDate && !d.closeToValue)
       diffRows.push({ field: "Close Date", current: fmtDate(deal.closeDate), proposed: fmtDate(deal.closeDate) });
   } else if (p.type === "deal_field") {
     const field = s(d.field);
     if (field === "closeDate") {
       diffRows = [
-        { field: "Close Date", current: d.fromValue ? fmtDate(s(d.fromValue)) : "—", proposed: fmtDate(s(d.toValue)) },
+        {
+          field: "Close Date",
+          current: d.fromValue ? fmtDate(s(d.fromValue)) : "—",
+          proposed: fmtDate(s(d.toValue)),
+          edit: "date",
+          iso: s(d.toValue).slice(0, 10),
+        },
       ];
     } else if (field === "amount") {
       diffRows = [
-        { field: "Amount", current: d.fromValue != null ? money(Number(d.fromValue)) : "—", proposed: money(Number(d.toValue)) },
+        { field: "Amount", current: d.fromValue != null ? money(Number(d.fromValue)) : "—", proposed: money(Number(d.toValue)), edit: "number" },
       ];
     } else if (field === "healthFlag") {
       diffRows = [{ field: "Status", current: "Active", proposed: "Stalled", pill: true }];
@@ -118,25 +210,27 @@ export function toProposalView(p: ProposalLike, deal: DealLike): ProposalView {
       diffRows.push({ field: "Amount", current: money(deal.amount), proposed: money(deal.amount) });
   } else if (p.type === "new_contact") {
     diffRows = [
-      { field: "Name", current: "—", proposed: s(d.name) },
-      { field: "Email", current: "—", proposed: s(d.email) || "—" },
-      { field: "Company", current: "—", proposed: s(d.company) || "—" },
-      { field: "Title", current: "—", proposed: s(d.title) || "—" },
+      { field: "Name", current: "—", proposed: s(d.name), edit: "text" },
+      { field: "Email", current: "—", proposed: s(d.email) || "—", edit: "text" },
+      { field: "Company", current: "—", proposed: s(d.company) || "—", edit: "text" },
+      { field: "Title", current: "—", proposed: s(d.title) || "—", edit: "text" },
     ];
   } else if (p.type === "new_deal") {
     diffRows = [
-      { field: "Deal", current: "—", proposed: s(d.name) },
-      { field: "Company", current: "—", proposed: s(d.company) || "—" },
-      { field: "Amount", current: "—", proposed: d.amount != null ? money(Number(d.amount)) : "—" },
-      { field: "Stage", current: "—", proposed: s(d.stage) || "New", pill: true },
+      { field: "Deal", current: "—", proposed: s(d.name), edit: "text" },
+      { field: "Company", current: "—", proposed: s(d.company) || "—", edit: "text" },
+      { field: "Amount", current: "—", proposed: d.amount != null ? money(Number(d.amount)) : "—", edit: "number" },
+      { field: "Stage", current: "—", proposed: s(d.stage) || "New", pill: true, edit: "stage" },
     ];
   } else if (p.type === "followup_draft") {
     diffRows = [
-      { field: "To", current: "—", proposed: s(d.toName) || s(d.toEmail) },
-      { field: "Subject", current: "—", proposed: s(d.subject) || "Follow-up" },
+      { field: "To", current: "—", proposed: s(d.toName) || s(d.toEmail), edit: "text" },
+      { field: "Subject", current: "—", proposed: s(d.subject) || "Follow-up", edit: "text" },
     ];
+    if (s(d.draftBody))
+      diffRows.push({ field: "Draft", current: "—", proposed: s(d.draftBody) });
   } else if (p.type === "task") {
-    diffRows = [{ field: "Task", current: "—", proposed: s(d.taskTitle) || p.title }];
+    diffRows = [{ field: "Task", current: "—", proposed: s(d.taskTitle) || p.title, edit: "text" }];
   }
 
   const requiredOk =
@@ -168,27 +262,63 @@ export function toProposalView(p: ProposalLike, deal: DealLike): ProposalView {
   let evidence: Evidence = null;
   if (p.capture) {
     const isCall = p.capture.kind === "call" || p.capture.kind === "meeting";
+    const label = EVIDENCE_LABEL[p.capture.source] ?? EVIDENCE_LABEL[p.capture.kind] ?? "Source";
+    const time = p.capture.occurredAt.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     evidence = {
       kind: isCall ? "call" : p.capture.kind === "chat" ? "chat" : "email",
       title:
         s(d.evidenceTitle) ||
         `${p.capture.source === "zoom" ? "Zoom Call" : p.capture.title} — ${fmtDate(p.capture.occurredAt)}`,
-      quote: p.capture.snippet || p.capture.body.slice(0, 160),
+      quote: s(d.evidenceQuote) || p.capture.snippet || p.capture.body.slice(0, 160),
+      meta: `— ${label} • ${fmtDate(p.capture.occurredAt)} • ${time}`,
       duration: s(d.duration) || undefined,
     };
   }
 
+  // ---- conflicts (computed from live CRM state, never invented) ----
+  const conflicts: string[] = [];
+  if (ctx) {
+    if (p.type === "new_contact") {
+      const email = s(d.email).toLowerCase();
+      if (email && ctx.contactEmails?.has(email)) {
+        conflicts.push("A contact with this email already exists in your CRM.");
+      }
+    }
+    if ((p.type === "deal_stage" || p.type === "deal_field") && p.dealExternalId) {
+      const from = s(d.fromValue);
+      const nowStage = ctx.dealStages?.get(p.dealExternalId);
+      if (from && nowStage && nowStage !== from) {
+        conflicts.push(`This deal has moved since the suggestion was made (now ${nowStage}).`);
+      }
+    }
+  }
+
+  const sourceTag = p.capture
+    ? (SOURCE_TAG[p.capture.source] ?? SOURCE_TAG[p.capture.kind] ?? "Other")
+    : "Other";
+
   return {
     id: p.id,
     type: p.type,
+    category,
+    iconKind,
     title: p.title,
     confidence: p.confidence,
     status: p.status,
     reason: p.reason,
+    description: s(d.description) || p.reason,
     createdAt: p.createdAt.toISOString(),
     decidedAt: p.decidedAt ? p.decidedAt.toISOString() : null,
     sourceLine,
     subline,
+    sourceTag,
+    sourceFull: p.capture?.body || null,
+    avatars: ctx?.people ?? [],
+    conflicts,
+    dealExternalId: p.dealExternalId ?? null,
     cta,
     diffRows,
     requiredOk,
@@ -203,3 +333,22 @@ export function confidenceTone(c: number | null): "green" | "amber" | "grey" {
   if (c >= 60) return "amber";
   return "grey";
 }
+
+// ---- Pipeline board: one deal, serialised for the client ----
+export type DealActivity = { title: string; status: string; when: string };
+export type DealView = {
+  id: string;
+  externalId: string;
+  name: string;
+  company: string | null;
+  stage: string;
+  amount: number | null;
+  closeDate: string | null; // pre-formatted
+  ownerName: string | null;
+  lastActivityLabel: string; // "2d ago"
+  health: { flag: "going_cold" | "no_reply" | "promise_due"; label: string; note: string | null } | null;
+  contact: { name: string; title: string | null; email: string | null } | null;
+  signatureStatus: string | null;
+  activity: DealActivity[];
+  latestReason: string | null;
+};

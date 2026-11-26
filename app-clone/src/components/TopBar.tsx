@@ -58,7 +58,7 @@ export default function TopBar({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => hits.length && setOpen(true)}
-            placeholder={'Ask CRM: "Show deals >$50K stalled in Negotiation..."'}
+            placeholder="Ask your CRM anything..."
             className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-ink shadow-none placeholder:text-faint focus:shadow-none"
             style={{ boxShadow: "none" }}
           />

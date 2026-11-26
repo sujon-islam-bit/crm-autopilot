@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { audit } from "./audit";
 import { askAiJson } from "./ai";
 import { STAGES, daysSilent } from "./constants";
+import { categoryFor } from "./category";
 import type { Prisma } from "../generated/prisma/client";
 
 const TYPES = [
@@ -152,6 +153,7 @@ If nothing is worth proposing, reply [].`;
       data: {
         workspaceId,
         type: item.type,
+        category: categoryFor(item.type, detail),
         title: item.title.slice(0, 200),
         detail: detail as Prisma.InputJsonValue,
         reason: (item.reason ?? "").slice(0, 500),

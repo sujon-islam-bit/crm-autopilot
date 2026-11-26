@@ -7,8 +7,8 @@ import ApprovalsClient from "../../../components/ApprovalsClient";
 
 async function Inner() {
   await connection();
-  const { workspace } = await requireWorkspace();
-  const [pendingRows, decidedRows, decidedTotal, connectionCount] = await Promise.all([
+  const { workspace, user } = await requireWorkspace();
+  const [pendingRows, decidedRows, decidedTotal, connectionCount, contacts, deals] = await Promise.all([
     prisma.proposal.findMany({
       where: { workspaceId: workspace.id, status: "pending" },
       include: { capture: true },
@@ -21,6 +21,8 @@ async function Inner() {
     }),
     prisma.proposal.count({ where: { workspaceId: workspace.id, status: { not: "pending" } } }),
     prisma.connection.count({ where: { workspaceId: workspace.id } }),
+    prisma.crmContact.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
+    prisma.crmDeal.findMany({ where: { workspaceId: workspace.id } }),
   ]);
 
   // Confidence descending, nulls last, newest first within a tier.
@@ -36,13 +38,36 @@ async function Inner() {
     (a, b) => (b.decidedAt ?? b.createdAt).getTime() - (a.decidedAt ?? a.createdAt).getTime(),
   );
 
+  const dealMap = new Map(deals.map((d) => [d.externalId, d]));
+  const contactEmails = new Set(
+    contacts.map((c) => c.email?.toLowerCase()).filter((e): e is string => Boolean(e)),
+  );
+  const dealStages = new Map(deals.map((d) => [d.externalId, d.stage]));
+  const fallbackName =
+    user.name?.trim() || user.email.split("@")[0].replace(/^./, (ch) => ch.toUpperCase());
+
+  const peopleFor = (p: (typeof pendingRows)[number]): string[] => {
+    const det = (p.detail ?? {}) as Record<string, unknown>;
+    const names: string[] = [];
+    if (p.dealExternalId) {
+      const deal = dealMap.get(p.dealExternalId);
+      if (deal?.ownerName) names.push(deal.ownerName);
+      const contact = deal?.company ? contacts.find((c) => c.company === deal.company) : undefined;
+      if (contact && !names.includes(contact.name)) names.push(contact.name);
+    } else if (p.type === "new_contact" && typeof det.name === "string") {
+      names.push(det.name);
+    } else if (p.type === "followup_draft" && typeof det.toName === "string") {
+      names.push(det.toName);
+    }
+    if (names.length === 0) names.push(fallbackName);
+    return names.slice(0, 2);
+  };
+
   const toViews = async (rows: typeof pendingRows) =>
     Promise.all(
       rows.map(async (p) => {
-        const deal = p.dealExternalId
-          ? await prisma.crmDeal.findFirst({ where: { workspaceId: workspace.id, externalId: p.dealExternalId } })
-          : null;
-        return toProposalView(p, deal);
+        const deal = p.dealExternalId ? (dealMap.get(p.dealExternalId) ?? null) : null;
+        return toProposalView(p, deal, { people: peopleFor(p), contactEmails, dealStages });
       }),
     );
 

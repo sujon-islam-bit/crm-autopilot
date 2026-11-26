@@ -64,7 +64,14 @@ export function SignatureButton({ dealExternalId }: { dealExternalId: string }) 
         onClick={() =>
           start(async () => {
             const r = await signatureAction(dealExternalId);
-            if (r.ok) setNote(r.configured ? "Sent via SignuDoc" : "Requested (SignuDoc not configured)");
+            if (r.ok)
+              setNote(
+                r.sent
+                  ? "Sent via SignuDoc"
+                  : r.configured
+                    ? "SignuDoc send failed — recorded as requested"
+                    : "Requested (SignuDoc not configured)",
+              );
             router.refresh();
           })
         }
@@ -110,7 +117,7 @@ export function DisconnectButton({ provider, label }: { provider: string; label:
   );
 }
 
-export function CheckUpdatesButton() {
+export function CheckUpdatesButton({ variant = "primary" }: { variant?: "primary" | "outline" }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [note, setNote] = useState("");
@@ -132,7 +139,11 @@ export function CheckUpdatesButton() {
             router.refresh();
           })
         }
-        className="btn-primary flex items-center gap-1.5 px-4 py-2 text-[13px] disabled:opacity-60"
+        className={
+          variant === "primary"
+            ? "btn-primary flex items-center gap-1.5 px-4 py-2 text-[13px] disabled:opacity-60"
+            : "btn-outline flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold disabled:opacity-60"
+        }
       >
         <I n="sync" size={14} sw={2.2} /> {busy ? "Checking…" : "Check for updates"}
       </button>

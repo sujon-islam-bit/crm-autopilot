@@ -2,6 +2,10 @@
 // Every number on the Command Center is a real row: open pipeline sums to
 // $1,240,000, 14 pending proposals, hygiene counts 19/24/31/8, rep-time
 // saved 630 min this week vs 562 last week (+12%), queue delta +3.
+// Review Queue v2 (2026-11-26): the 14 pending proposals are the ChatGPT
+// design's set (Acme 96 / Sarah Lee 94 / NovaTech 91 …), each with a tab
+// category — Deal Updates 6 · New Contacts 3 · Enrichment 3 · Follow-ups 2
+// · Field Fixes 0 — and the workspace health score is 98 (design top pill).
 import { readFileSync } from "node:fs";
 
 // --- load .env before importing app code ---
@@ -22,6 +26,7 @@ const daysAgo = (d: number, h = 10) => {
   return t;
 };
 const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600_000);
+const minsAgo = (m: number) => new Date(now.getTime() - m * 60_000);
 // Monday of the current week (matches startOfWeek in src/lib/constants).
 const monday = new Date(now);
 monday.setHours(0, 0, 0, 0);
@@ -59,7 +64,7 @@ const user = await prisma.user.create({
   },
 });
 const ws = await prisma.workspace.create({
-  data: { name: "Acme Sales", plan: "trial", healthScore: 94, healthDelta: 11 },
+  data: { name: "Acme Sales", plan: "trial", healthScore: 98, healthDelta: 11 },
 });
 // The demo persona's sidebar role line is part of the reference image, so it
 // is stored on THIS membership only; real owners get no override → "Owner".
@@ -104,7 +109,7 @@ const dealSpecs: DealSpec[] = [
   ["hs-207", "Northstar", 85000, "Negotiation", daysAgo(21), { lastActDays: 14 }],
   ["hs-208", "Pinehost", 51000, "Contacted", daysAgo(14), { lastActDays: 2 }],
   ["hs-210", "PixelWorks", 18000, "Proposal sent", daysAgo(35), { owner: null, lastActDays: 33 }],
-  ["hs-212", "Sunfield", 15000, "Discovery", daysAgo(38), { lastActDays: 36 }],
+  ["hs-212", "Zenith Labs", 15000, "Discovery", daysAgo(38), { lastActDays: 36 }],
   ["hs-219", "Moss Legal", 33000, "New", daysAgo(24), { lastActDays: 3 }],
   // LAST WEEK bucket (Mon–Sun) — +238,000 → 1,088,000
   ["hs-214", "Redwood", 12000, "Proposal sent", wk(-1, 0), { owner: null, lastActDays: 34 }],
@@ -112,13 +117,13 @@ const dealSpecs: DealSpec[] = [
   ["hs-209", "Harbor Dental", 21000, "Contacted", wk(-1, 2), { lastActDays: 38 }],
   ["hs-224", "Copperline", 26000, "Contacted", wk(-1, 3), { lastActDays: 1 }],
   ["hs-223", "Northbeam", 34000, "Negotiation", wk(-1, 4), { lastActDays: 0 }],
-  ["hs-218", "Fernhill", 57000, "Discovery", wk(-1, 5), { lastActDays: 2 }],
+  ["hs-218", "Gamma Solutions", 57000, "Discovery", wk(-1, 5), { lastActDays: 2 }],
   ["hs-221", "Koda Labs", 22000, "Meeting booked", wk(-1, 6), { lastActDays: 2 }],
   ["hs-222", "BetaFlow", 50000, "Discovery", wk(-1, 6), { lastActDays: 0 }],
   // THIS WEEK bucket (Mon–Sun) — +152,000 → 1,240,000
   ["hs-216", "Mesa Group", 9000, "Contacted", wk(0, 0), { owner: null, lastActDays: 37 }],
   ["hs-215", "Alto Labs", 11000, "New", wk(0, 1), { owner: null, lastActDays: 41 }],
-  ["hs-213", "Koda Systems", 14000, "Contacted", wk(0, 2), { owner: null, lastActDays: 44 }],
+  ["hs-213", "NovaTech", 14000, "Contacted", wk(0, 2), { owner: null, lastActDays: 44, close: "2026-12-20" }],
   ["hs-226", "Loomly", 18000, "New", wk(0, 3), { owner: null, lastActDays: 3 }],
   ["hs-225", "Vantage", 24000, "Proposal sent", wk(0, 4), { lastActDays: 2 }],
   ["hs-220", "Sunridge", 28000, "Contacted", wk(0, 5), { owner: null, lastActDays: 4 }],
@@ -160,6 +165,9 @@ await prisma.crmDeal.create({
 console.log("open pipeline total:", openTotal);
 
 // ---------- contacts ----------
+// The 12 named contacts carry industry = NULL — they are exactly the 12
+// records the "Fix Missing Field: Industry" proposal fills with 'Software'.
+// Every other contact gets an industry so the apply touches exactly 12.
 // [name, email, company, title]
 const named: [string, string, string, string][] = [
   ["Priya Nair", "priya.nair@acmecorp.com", "Acme Corp", "VP Finance"],
@@ -170,37 +178,54 @@ const named: [string, string, string, string][] = [
   ["James Park", "james@valeclinics.com", "Vale Clinics", "Director"],
   ["Aisha Khan", "aisha@ostromedia.com", "Ostro Media", "CMO"],
   ["Ben Carter", "ben@brightline.co", "Brightline", "Founder"],
-  ["Lucy Meyer", "lucy@fernhill.com", "Fernhill", "Ops Manager"],
+  ["Lucy Meyer", "lucy@fernhill.com", "Gamma Solutions", "Ops Manager"],
   ["Omar Farouk", "omar@pinehost.com", "Pinehost", "CEO"],
   ["Grace Liu", "grace@kiteandanchor.com", "Kite & Anchor", "Partner"],
   ["Noah Berg", "noah@northbeam.io", "Northbeam", "VP Sales"],
 ];
 for (const [name, email, company, title] of named) {
-  await prisma.crmContact.create({ data: { workspaceId: W, name, email, company, title } });
+  await prisma.crmContact.create({ data: { workspaceId: W, name, email, company, title, industry: null } });
 }
-// 16 contacts with a missing field (8 without email, 8 without title)
+// Jane Doe exists twice — the pair the "Merge Duplicate Contacts" proposal
+// merges. The second record is the workspace's 19th duplicate row.
+const janeMaster = await prisma.crmContact.create({
+  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software" },
+});
+const janeDuplicate = await prisma.crmContact.create({
+  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software" },
+});
+// 16 contacts with a missing field (8 without email, 8 without title).
+// Anna Lindberg sits in the no-title half — she is the Enrich proposal's
+// target (LinkedIn supplies her title).
 const missingNames = [
   "Ravi Menon", "Sofia Rossi", "Liam Doyle", "Ingrid Voss", "Pavel Novak", "Mia Chen",
-  "Diego Fuentes", "Anna Lindberg", "Karl Weber", "Nina Petrova", "Owen Hart", "Lena Fischer",
+  "Diego Fuentes", "Karl Weber", "Anna Lindberg", "Nina Petrova", "Owen Hart", "Lena Fischer",
   "Marco Bianchi", "Eva Novak", "Sam Whitfield", "Tara O'Brien",
 ];
+const fillerIndustries = ["Technology", "Healthcare", "Finance", "Retail", "Manufacturing"];
+let annaId = "";
 for (let i = 0; i < missingNames.length; i++) {
   const noEmail = i < 8;
-  await prisma.crmContact.create({
+  const c = await prisma.crmContact.create({
     data: {
       workspaceId: W,
       name: missingNames[i],
       email: noEmail ? null : `contact${i}@example.com`,
       company: "Prospect Co",
       title: noEmail ? "Manager" : null,
+      industry: fillerIndustries[i % fillerIndustries.length],
     },
   });
+  if (missingNames[i] === "Anna Lindberg") annaId = c.id;
 }
-// 19 duplicate rows (same email as an existing contact)
+// 18 more duplicate rows (same email as an existing contact) — with Jane's
+// second record above, duplicates total 19.
 const dupSources = [...named, ...missingNames.slice(8).map((n, i) => [n, `contact${i + 8}@example.com`, "Prospect Co", "Manager"] as const)];
-for (let i = 0; i < 19; i++) {
+for (let i = 0; i < 18; i++) {
   const [name, email, company, title] = dupSources[i % dupSources.length];
-  await prisma.crmContact.create({ data: { workspaceId: W, name, email, company, title } });
+  await prisma.crmContact.create({
+    data: { workspaceId: W, name, email, company, title, industry: fillerIndustries[i % fillerIndustries.length] },
+  });
 }
 
 // ---------- captures ----------
@@ -213,7 +238,7 @@ const zoomCapture = await prisma.capture.create({
     title: "Zoom call — Acme Corp MSA review",
     fromLabel: "Priya Nair (Acme Corp)",
     snippet: "Send MSA today.",
-    body: "Priya Nair: Legal has signed off on our side. We will send the MSA today. If you can move the close date to November 30, our finance team can release the budget this quarter. Yasses: Perfect — I'll update the deal stage to Negotiation and move the close date. Priya: Amount stays at $120,000.",
+    body: "Priya Nair: Legal has signed off on our side. We will send the MSA today. If you can move the close date to November 30, our finance team can release the budget this quarter. Yasses: Perfect — I'll update the deal stage to Negotiation and move the close date. Priya: Amount stays at $120,000. Priya: …let's move forward with the proposal by end of this month.",
     occurredAt: new Date(2026, 10, 24, 10, 0),
     processedAt: daysAgo(2, 11),
   },
@@ -230,6 +255,147 @@ const gmailCapture = await prisma.capture.create({
     body: "Hi Yasses — Sara Lee, VP Ops at Kite & Anchor. Grace passed me your details. I'd like a call this week about the proposal. Please add me as the main contact on our account.",
     occurredAt: daysAgo(1, 9),
     processedAt: daysAgo(1, 10),
+  },
+});
+// Captures behind the Review Queue v2 proposals (evidence sources).
+const novatechCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "meeting",
+    source: "calendar",
+    externalId: "cal-novatech-qbr",
+    title: "QBR — NovaTech",
+    fromLabel: "NovaTech team",
+    snippet: "Close moved to Dec 12.",
+    body: "NovaTech QBR. Their board meets on December 10, so the close date moves from December 20 to December 12 (per meeting). Everything else on the deal is unchanged.",
+    occurredAt: hoursAgo(1),
+    processedAt: hoursAgo(1),
+  },
+});
+const zenithCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "email",
+    source: "gmail",
+    externalId: "gmail-zenith-thread",
+    title: "Proposal — Zenith Labs",
+    fromLabel: "Rachel Ortiz <rachel@zenithlabs.com>",
+    snippet: "No reply in 6 days",
+    body: "Thread: Yasses sent the Zenith Labs proposal and pricing six days ago. Rachel Ortiz opened it twice. No reply has been received yet — a follow-up draft is warranted.",
+    occurredAt: daysAgo(6, 9),
+    processedAt: hoursAgo(2),
+  },
+});
+const gammaCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "call",
+    source: "zoom",
+    externalId: "zoom-gamma-review",
+    title: "Zoom call — Gamma Solutions budget review",
+    fromLabel: "Lucy Meyer (Gamma Solutions)",
+    snippet: "Budget approved — ready for proposal.",
+    body: "Lucy Meyer: Finance approved the budget this morning. We are ready for the proposal — please move the deal forward. Yasses: Will do, I'll advance it to Proposal sent.",
+    occurredAt: hoursAgo(3),
+    processedAt: hoursAgo(2),
+  },
+});
+const vectorCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "call",
+    source: "zoom",
+    externalId: "zoom-vector-product",
+    title: "Product call — Vector Corp",
+    fromLabel: "Vector Corp team",
+    snippet: "Walked through the reporting module.",
+    body: "Product call with Vector Corp. Walked through the reporting module and the new export options. They asked for a written summary of the call — the meeting note should be added to their record.",
+    occurredAt: hoursAgo(4),
+    processedAt: hoursAgo(3),
+  },
+});
+const pinehostCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "email",
+    source: "gmail",
+    externalId: "gmail-pinehost-demo",
+    title: "Re: Pinehost demo",
+    fromLabel: "Omar Farouk <omar@pinehost.com>",
+    snippet: "Thursday works for the demo.",
+    body: "Omar Farouk: Thursday works for the demo call — let's lock it in. Please move us to the meeting stage.",
+    occurredAt: hoursAgo(5),
+    processedAt: hoursAgo(4),
+  },
+});
+const martaCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "email",
+    source: "gmail",
+    externalId: "gmail-marta-cc",
+    title: "Vale Clinics — procurement intro",
+    fromLabel: "James Park <james@valeclinics.com>",
+    snippet: "Looping in Marta from procurement.",
+    body: "James Park: Looping in Marta Ruiz — she leads procurement for Vale Clinics and should be a contact on our account.",
+    occurredAt: daysAgo(1, 11),
+    processedAt: daysAgo(1, 12),
+  },
+});
+const datawiseCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "email",
+    source: "gmail",
+    externalId: "gmail-datawise-seats",
+    title: "Re: Datawise seats",
+    fromLabel: "Tom Becker <tom@datawise.co>",
+    snippet: "Confirmed: 20 extra seats.",
+    body: "Tom Becker: Confirming in writing — we will add the extra 20 seats, so the deal amount goes to $148,000.",
+    occurredAt: daysAgo(1, 14),
+    processedAt: daysAgo(1, 15),
+  },
+});
+const davidCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "email",
+    source: "gmail",
+    externalId: "gmail-david-intro",
+    title: "Intro — David Chen, CloudFlow",
+    fromLabel: "David Chen <david@cloudflow.io>",
+    snippet: "I lead engineering at CloudFlow.",
+    body: "Hi — David Chen, Engineering Manager at CloudFlow. Elena passed me your details; I'll be your technical contact for the rollout.",
+    occurredAt: daysAgo(2, 10),
+    processedAt: daysAgo(2, 11),
+  },
+});
+const kiteCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "chat",
+    source: "chat",
+    externalId: "wa-kite-budget",
+    title: "WhatsApp — Grace Liu (Kite & Anchor)",
+    fromLabel: "Grace Liu",
+    snippet: "Budget approved.",
+    body: "Grace Liu: Good news — budget is approved on our side. Happy to move into negotiation whenever you are.",
+    occurredAt: daysAgo(2, 16),
+    processedAt: daysAgo(2, 17),
+  },
+});
+const annaCapture = await prisma.capture.create({
+  data: {
+    workspaceId: W,
+    kind: "chat",
+    source: "manual",
+    externalId: "li-anna-lindberg",
+    title: "LinkedIn profile — Anna Lindberg",
+    fromLabel: "Anna Lindberg",
+    snippet: "Operations Manager at Prospect Co.",
+    body: "LinkedIn profile: Anna Lindberg — Operations Manager at Prospect Co. Her CRM contact record has no title yet; LinkedIn lists Operations Manager.",
+    occurredAt: daysAgo(2, 9),
+    processedAt: daysAgo(2, 10),
   },
 });
 // Today's brief: BetaFlow meeting at 2:00 PM
@@ -300,10 +466,16 @@ async function proposal(data: PropSpec) {
   return p;
 }
 
-// Hero 1 — Acme stage move (96%)
+// ---------- the 14 pending proposals (Review Queue v2 design set) ----------
+// Order + confidences follow the design; createdAt is staggered in minutes
+// so the "Xm ago" column reads 2m, 5m, 7m, 10m, 12m, 15m, 17m, 20m, then
+// 25–90m. Categories land exactly: Deal Updates 6 · New Contacts 3 ·
+// Enrichment 3 · Follow-ups 2 · Field Fixes 0.
+// 1 — Acme stage move (96%, deal_update)
 await proposal({
   workspaceId: W,
   type: "deal_stage",
+  category: "deal_update",
   title: "Update Deal Stage: Acme Corp",
   confidence: 96,
   source: "call",
@@ -315,90 +487,310 @@ await proposal({
     field: "stage",
     fromValue: "Discovery",
     toValue: "Negotiation",
+    closeToValue: "2026-11-30",
     amount: 120000,
+    description: "Move this deal from Discovery to Negotiation based on recent call activity.",
+    subline: "From Discovery → Negotiation",
     sourceLine: 'Src: Zoom • "Send MSA today"',
     duration: "02:17",
     evidenceTitle: "Zoom Call — Nov 24, 2026",
+    evidenceQuote: "…let's move forward with the proposal by end of this month.",
     requiredOk: true,
     cascade: [
+      { icon: "chart", text: "Increase Q4 Pipeline by +$45K" },
       { icon: "slack", text: "Triggers Slack notification in #deals" },
-      { icon: "chart", text: "Increases Q4 Pipeline by +$45K" },
+      { icon: "sync", text: "Updates revenue forecast" },
     ],
     diffRows: [
-      { field: "Stage", current: "Discovery", proposed: "Negotiation", pill: true },
-      { field: "Close Date", current: "Dec 15, 2026", proposed: "Nov 30, 2026" },
-      { field: "Amount", current: "$120,000", proposed: "$120,000" },
+      { field: "Stage", current: "Discovery", proposed: "Negotiation", pill: true, edit: "stage" },
+      { field: "Close Date", current: "Dec 15, 2026", proposed: "Nov 30, 2026", edit: "date", iso: "2026-11-30" },
+      { field: "Next Step", current: "Send proposal", proposed: "Await feedback", edit: "text" },
     ],
   },
   status: "pending",
-  createdAt: hoursAgo(2),
+  createdAt: minsAgo(2),
 });
-// Hero 2 — Sara Lee contact (88%)
+// 2 — Sarah Lee contact (94%, new_contact)
 await proposal({
   workspaceId: W,
   type: "new_contact",
-  title: "Add Contact: Sara Lee (VP Ops)",
-  confidence: 88,
+  category: "new_contact",
+  title: "Add Contact: Sarah Lee (VP Ops)",
+  confidence: 94,
   source: "gmail",
   captureId: gmailCapture.id,
   reason: "Sara Lee introduced herself as VP Ops at Kite & Anchor in the email thread and asked to be the main contact.",
   detail: {
-    name: "Sara Lee",
+    name: "Sarah Lee",
     email: "sara.lee@kiteandanchor.com",
     company: "Kite & Anchor",
     title: "VP Ops",
+    description: "Add Sarah Lee as a contact from the Gmail thread and enrich with LinkedIn.",
+    subline: "From Gmail thread • Enrich with LinkedIn",
     sourceLine: "Src: Gmail thread • Enriched",
   },
   status: "pending",
-  createdAt: hoursAgo(1),
+  createdAt: minsAgo(5),
 });
-// Hero 3 — Northstar stalled (72%)
+// 3 — NovaTech close date (91%, deal_update)
 await proposal({
   workspaceId: W,
   type: "deal_field",
-  title: "Mark Deal as Stalled: Northstar",
-  confidence: 72,
-  source: "engine",
-  dealExternalId: "hs-207",
-  reason: "Northstar has had no activity for 14 days while sitting in Negotiation.",
-  detail: { field: "healthFlag", subline: "No activity for 14 days", cta: "review" },
+  category: "deal_update",
+  title: "Update Close Date: NovaTech",
+  confidence: 91,
+  source: "calendar",
+  captureId: novatechCapture.id,
+  dealExternalId: "hs-213",
+  reason: "In the QBR, NovaTech asked for the close to move from December 20 to December 12, ahead of their board meeting.",
+  detail: {
+    field: "closeDate",
+    fromValue: "2026-12-20",
+    toValue: "2026-12-12",
+    description: "Move NovaTech's close date from Dec 20 to Dec 12, as agreed in the meeting.",
+    subline: "Dec 20 → Dec 12 (per meeting)",
+  },
   status: "pending",
-  createdAt: hoursAgo(3),
+  createdAt: minsAgo(7),
 });
-// Follow-up draft (brief row 2) — confidence 68 keeps it out of the queue top-3
+// 4 — Zenith Labs follow-up draft (91%, followup)
 await proposal({
   workspaceId: W,
   type: "followup_draft",
-  title: "Draft Follow-up: Northstar",
-  confidence: 71,
+  category: "followup",
+  title: "Draft Follow-up: Zenith Labs",
+  confidence: 91,
   source: "gmail",
-  dealExternalId: "hs-207",
-  reason: "Mark asked for the SOC2 report on the last call; no follow-up has been sent yet.",
+  captureId: zenithCapture.id,
+  dealExternalId: "hs-212",
+  reason: "The proposal email to Zenith Labs has had no reply in 6 days.",
   detail: {
-    toName: "Mark Sullivan",
-    toEmail: "mark@northstar.io",
-    subject: "SOC2 report + next steps",
-    draftBody: "Hi Mark, attaching the SOC2 PDF you asked for. Happy to walk your security team through it this week.",
+    toName: "Rachel Ortiz",
+    toEmail: "rachel@zenithlabs.com",
+    subject: "Following up — Zenith Labs proposal",
+    draftBody: "Hi Rachel, just floating our proposal back to the top of your inbox. Happy to walk through the pricing whenever suits you.",
+    description: "Draft a follow-up to Zenith Labs — the last email went unanswered.",
+    subline: "Based on unanswered email",
   },
   status: "pending",
-  createdAt: daysAgo(1, 8),
+  createdAt: minsAgo(10),
 });
-// 10 more pending proposals (queue total = 14)
-const morePending: PropSpec[] = [
-  { type: "deal_stage", title: "Advance Pinehost to Meeting booked", confidence: 71, source: "gmail", dealExternalId: "hs-208", reason: "Omar confirmed a demo call for Thursday in his reply.", detail: { field: "stage", fromValue: "Contacted", toValue: "Meeting booked" }, createdAt: daysAgo(1, 8) },
-  { type: "deal_field", title: "Update Ostro Media close date to December 1", confidence: 71, source: "call", dealExternalId: "hs-206", reason: "Aisha said legal needs the close moved to December 1.", detail: { field: "closeDate", fromValue: "2026-12-20", toValue: "2026-12-01" }, createdAt: daysAgo(1, 7) },
-  { type: "new_deal", title: "Create deal: GreenLeaf pilot", confidence: 71, source: "gmail", reason: "GreenLeaf's ops lead asked for a paid pilot quote.", detail: { name: "GreenLeaf pilot", company: "GreenLeaf", amount: 15000, stage: "Discovery" }, createdAt: daysAgo(2, 9) },
-  { type: "task", title: "Send pricing sheet to CloudFlow", confidence: 71, source: "gmail", dealExternalId: "hs-204", reason: "Elena asked for the pricing sheet before Friday's review.", detail: { taskTitle: "Send pricing sheet to CloudFlow", dueHint: "Friday" }, createdAt: daysAgo(2, 11) },
-  { type: "deal_stage", title: "Advance Kite & Anchor to Negotiation", confidence: 71, source: "chat", dealExternalId: "hs-217", reason: "Grace confirmed budget approval in the WhatsApp thread.", detail: { field: "stage", fromValue: "Proposal sent", toValue: "Negotiation" }, createdAt: daysAgo(3, 9) },
-  { type: "deal_field", title: "Update Datawise amount to $148,000", confidence: 71, source: "gmail", dealExternalId: "hs-202", reason: "Tom confirmed the extra 20 seats in writing.", detail: { field: "amount", fromValue: 142000, toValue: 148000 }, createdAt: daysAgo(3, 13) },
-  { type: "new_contact", title: "Add Contact: Marta Ruiz (Vale Clinics)", confidence: 71, source: "gmail", reason: "Marta was cc'd as Vale Clinics' procurement lead.", detail: { name: "Marta Ruiz", email: "marta@valeclinics.com", company: "Vale Clinics", title: "Procurement Lead" }, createdAt: daysAgo(4, 10) },
-  { type: "task", title: "Book security review with Datawise", confidence: 71, source: "calendar", dealExternalId: "hs-202", reason: "Datawise's security review is the last blocker before signature.", detail: { taskTitle: "Book security review with Datawise", dueHint: "This week" }, createdAt: daysAgo(4, 15) },
-  { type: "followup_draft", title: "Draft Follow-up: Brightline", confidence: 71, source: "gmail", dealExternalId: "hs-203", reason: "Ben asked for the revised terms; the draft is ready to send.", detail: { toName: "Ben Carter", toEmail: "ben@brightline.co", subject: "Revised terms", draftBody: "Hi Ben, attached are the revised terms we discussed." }, createdAt: daysAgo(5, 9) },
-  { type: "hygiene_fix", title: "Merge duplicate: Priya Nair", confidence: 71, source: "hygiene", reason: "Two contact records share priya.nair@acmecorp.com.", detail: { kind: "duplicate", label: "Priya Nair" }, createdAt: daysAgo(5, 12) },
-];
-for (const spec of morePending) {
-  await proposal({ workspaceId: W, status: "pending", ...spec });
-}
+// 5 — Industry fix (87%, enrichment) — applies to the 12 null-industry contacts
+await proposal({
+  workspaceId: W,
+  type: "hygiene_fix",
+  category: "enrichment",
+  title: "Fix Missing Field: Industry",
+  confidence: 87,
+  source: "hygiene",
+  reason: "12 contacts have no Industry value; their company profiles all point to Software.",
+  detail: {
+    kind: "industry",
+    value: "Software",
+    count: 12,
+    iconKind: "building2",
+    description: "12 contacts are missing an Industry value. Set them to 'Software' based on their company profiles.",
+    subline: "Add 'Software' for 12 contacts",
+    diffRows: [{ field: "Industry", current: "— (12 contacts)", proposed: "Software", edit: "text" }],
+    cascade: [{ icon: "sync", text: "Updates 12 contact records in your CRM" }],
+  },
+  status: "pending",
+  createdAt: minsAgo(12),
+});
+// 6 — Gamma Solutions to Proposal (84%, deal_update)
+await proposal({
+  workspaceId: W,
+  type: "deal_stage",
+  category: "deal_update",
+  title: "Move Deal to Proposal",
+  confidence: 84,
+  source: "call",
+  captureId: gammaCapture.id,
+  dealExternalId: "hs-218",
+  reason: "Lucy Meyer confirmed on the call that Gamma Solutions' budget is approved and they are ready for the proposal.",
+  detail: {
+    field: "stage",
+    fromValue: "Discovery",
+    toValue: "Proposal sent",
+    iconKind: "shield",
+    description: "Move Gamma Solutions from Discovery to Proposal sent — budget is approved.",
+    subline: "Gamma Solutions • $57K",
+  },
+  status: "pending",
+  createdAt: minsAgo(15),
+});
+// 7 — Merge Jane Doe duplicates (82%, enrichment)
+await proposal({
+  workspaceId: W,
+  type: "hygiene_fix",
+  category: "enrichment",
+  title: "Merge Duplicate Contacts",
+  confidence: 82,
+  source: "hygiene",
+  reason: "Two contact records share the email jane@acme.com.",
+  detail: {
+    kind: "merge",
+    masterId: janeMaster.id,
+    duplicateId: janeDuplicate.id,
+    iconKind: "users",
+    description: "Two contact records exist for Jane Doe at Acme Corp. Merge them into one master record.",
+    subline: "jane@acme.com → Jane Doe",
+    diffRows: [
+      { field: "Master Record", current: "Jane Doe", proposed: "Jane Doe" },
+      { field: "Duplicate", current: "Jane Doe (2nd record)", proposed: "Merged & removed" },
+    ],
+    cascade: [{ icon: "user", text: "Keeps one Jane Doe record in Contacts" }],
+  },
+  status: "pending",
+  createdAt: minsAgo(17),
+});
+// 8 — Vector Corp meeting note (79%, followup)
+await proposal({
+  workspaceId: W,
+  type: "task",
+  category: "followup",
+  title: "Add Meeting Note",
+  confidence: 79,
+  source: "call",
+  captureId: vectorCapture.id,
+  reason: "Vector Corp asked for a written summary of the product call on their record.",
+  detail: {
+    taskTitle: "Add meeting note — Vector Corp product call",
+    noteBody: "Product call: walked through the reporting module and export options. Vector Corp asked for a written summary.",
+    iconKind: "mailOpen",
+    description: "Add the notes from the Vector Corp product call to their CRM record.",
+    subline: "Product call with Vector Corp",
+  },
+  status: "pending",
+  createdAt: minsAgo(20),
+});
+// 9 — Pinehost to Meeting booked (78%, deal_update)
+await proposal({
+  workspaceId: W,
+  type: "deal_stage",
+  category: "deal_update",
+  title: "Advance Pinehost to Meeting booked",
+  confidence: 78,
+  source: "gmail",
+  captureId: pinehostCapture.id,
+  dealExternalId: "hs-208",
+  reason: "Omar confirmed a demo call for Thursday in his reply.",
+  detail: {
+    field: "stage",
+    fromValue: "Contacted",
+    toValue: "Meeting booked",
+    description: "Advance Pinehost from Contacted to Meeting booked — the demo is confirmed for Thursday.",
+    subline: "From Contacted → Meeting booked",
+  },
+  status: "pending",
+  createdAt: minsAgo(25),
+});
+// 10 — Marta Ruiz contact (77%, new_contact)
+await proposal({
+  workspaceId: W,
+  type: "new_contact",
+  category: "new_contact",
+  title: "Add Contact: Marta Ruiz (Vale Clinics)",
+  confidence: 77,
+  source: "gmail",
+  captureId: martaCapture.id,
+  reason: "James Park cc'd Marta Ruiz as Vale Clinics' procurement lead.",
+  detail: {
+    name: "Marta Ruiz",
+    email: "marta@valeclinics.com",
+    company: "Vale Clinics",
+    title: "Procurement Lead",
+    description: "Add Marta Ruiz as a contact from the Gmail thread.",
+    subline: "From Gmail thread • Procurement lead",
+  },
+  status: "pending",
+  createdAt: minsAgo(32),
+});
+// 11 — Datawise amount (76%, deal_update)
+await proposal({
+  workspaceId: W,
+  type: "deal_field",
+  category: "deal_update",
+  title: "Update Datawise amount to $148,000",
+  confidence: 76,
+  source: "gmail",
+  captureId: datawiseCapture.id,
+  dealExternalId: "hs-202",
+  reason: "Tom confirmed the extra 20 seats in writing.",
+  detail: {
+    field: "amount",
+    fromValue: 142000,
+    toValue: 148000,
+    description: "Raise the Datawise deal amount from $142,000 to $148,000 for the extra 20 seats.",
+    subline: "$142,000 → $148,000",
+  },
+  status: "pending",
+  createdAt: minsAgo(40),
+});
+// 12 — Enrich Anna Lindberg (75%, enrichment)
+await proposal({
+  workspaceId: W,
+  type: "hygiene_fix",
+  category: "enrichment",
+  title: "Enrich Contact: Anna Lindberg",
+  confidence: 75,
+  source: "hygiene",
+  captureId: annaCapture.id,
+  reason: "Anna Lindberg's contact record has no title; her LinkedIn profile lists Operations Manager.",
+  detail: {
+    kind: "enrich",
+    contactId: annaId,
+    field: "title",
+    toTitle: "Operations Manager",
+    description: "Fill in Anna Lindberg's missing Title from her LinkedIn profile.",
+    subline: "Add title from LinkedIn",
+    diffRows: [{ field: "Title", current: "—", proposed: "Operations Manager", edit: "text" }],
+  },
+  status: "pending",
+  createdAt: minsAgo(48),
+});
+// 13 — David Chen contact (74%, new_contact)
+await proposal({
+  workspaceId: W,
+  type: "new_contact",
+  category: "new_contact",
+  title: "Add Contact: David Chen (CloudFlow)",
+  confidence: 74,
+  source: "gmail",
+  captureId: davidCapture.id,
+  reason: "David Chen introduced himself as CloudFlow's Engineering Manager and technical contact for the rollout.",
+  detail: {
+    name: "David Chen",
+    email: "david@cloudflow.io",
+    company: "CloudFlow",
+    title: "Engineering Manager",
+    description: "Add David Chen as a contact from the Gmail thread.",
+    subline: "From Gmail thread • Eng Manager",
+  },
+  status: "pending",
+  createdAt: minsAgo(55),
+});
+// 14 — Kite & Anchor to Negotiation (73%, deal_update)
+await proposal({
+  workspaceId: W,
+  type: "deal_stage",
+  category: "deal_update",
+  title: "Advance Kite & Anchor to Negotiation",
+  confidence: 73,
+  source: "chat",
+  captureId: kiteCapture.id,
+  dealExternalId: "hs-217",
+  reason: "Grace confirmed budget approval in the WhatsApp thread.",
+  detail: {
+    field: "stage",
+    fromValue: "Proposal sent",
+    toValue: "Negotiation",
+    description: "Advance Kite & Anchor from Proposal sent to Negotiation — budget is approved.",
+    subline: "From Proposal sent → Negotiation",
+  },
+  status: "pending",
+  createdAt: minsAgo(70),
+});
 
 // Decided this week — 11 applied, savedMinutes sum 630 (= 10.5 hrs)
 const savedThisWeek = [60, 60, 60, 55, 55, 55, 55, 60, 60, 55, 55];

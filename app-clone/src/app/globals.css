@@ -22,6 +22,10 @@
   --color-amber-tint: #fdf0d7;
   --color-purple: #8b5cf6;
   --color-purple-tint: #efe9fe;
+  --color-violet: #6c3ce9;
+  --color-violet-dark: #5a2bd0;
+  --color-violet-tint: #efeaff;
+  --color-violet-soft: #f3f0ff;
   --color-red: #e5484d;
 }
 
@@ -66,6 +70,20 @@ body {
 .btn-outline:hover {
   border-color: #cfd2e0;
   background: #fafafc;
+}
+
+.btn-violet {
+  background: var(--color-violet);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.btn-violet:hover {
+  background: var(--color-violet-dark);
+}
+.btn-violet:active {
+  transform: translateY(1px);
 }
 
 a {
