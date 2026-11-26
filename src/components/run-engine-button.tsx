@@ -12,7 +12,7 @@ export default function RunEngineButton() {
 
   return (
     <div className="flex items-center gap-3">
-      {note && <span className="text-[13.5px] text-neutral-500">{note}</span>}
+      {note && <span className="text-[13.5px] text-stone-500">{note}</span>}
       <button
         onClick={() =>
           start(async () => {
@@ -28,7 +28,7 @@ export default function RunEngineButton() {
           })
         }
         disabled={busy}
-        className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(62,124,177,0.8)] transition duration-200 hover:bg-brand-dark disabled:opacity-50 disabled:shadow-none"
+        className="rounded-xl bg-pine px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(11,79,58,0.55)] transition duration-200 hover:bg-pine-dark disabled:opacity-50 disabled:shadow-none"
       >
         {busy ? "Reading…" : "Check for updates"}
       </button>

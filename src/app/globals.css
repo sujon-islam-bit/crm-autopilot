@@ -1,50 +1,62 @@
 @import "tailwindcss";
 
 @theme {
+  /* Blue brand — now used ONLY by the landing page, which keeps its
+     approved Day.ai-style look. The interior chrome is Emitly-style
+     deep green + lime (tokens below). */
   --color-brand: #3e7cb1;
   --color-brand-dark: #33658f;
   --color-brand-soft: #eef4fa;
-  /* Soft blue-grey lines: quieter than neutral-200, so cards feel
-     like one calm surface instead of outlined boxes. */
-  --color-line: #e1e8f0;
-  --color-line-soft: #ecf1f6;
-  /* Interior canvas + sidebar tints. */
-  --color-canvas: #f7f9fc;
-  --color-shell: #edf1f7;
+  /* Emitly interior palette (Sujon's pick, 2026-11-26): warm
+     off-white canvas, deep green primaries, lime highlights. */
+  --color-pine: #0b4f3a;
+  --color-pine-dark: #083c2c;
+  --color-lime: #bef264;
+  --color-lime-deep: #a3e635;
+  /* Soft warm tint for tiles, reason boxes and hover fills. */
+  --color-warm: #f7f5ee;
+  /* Warm hairlines: quieter than stone-200, so cards feel like one
+     calm surface instead of outlined boxes. */
+  --color-line: #e6e4da;
+  --color-line-soft: #efede3;
+  /* Interior canvas. The sidebar uses the same colour — Emitly has
+     no separate sidebar panel, the nav floats on the page. */
+  --color-canvas: #f5f5f0;
+  --color-shell: #f5f5f0;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 body {
-  background: #fafafa;
-  color: #171717;
+  background: #f5f5f0;
+  color: #1c1917;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: #cfe1f1;
+  background: #d9f99d;
 }
 
-/* Brand-tinted keyboard focus for links and buttons (inputs draw
+/* Deep-green keyboard focus for links and buttons (inputs draw
    their own rings). */
 a:focus-visible,
 button:focus-visible {
-  outline: 2px solid rgba(62, 124, 177, 0.55);
+  outline: 2px solid rgba(11, 79, 58, 0.55);
   outline-offset: 2px;
 }
 
 @layer components {
-  /* The one card style used across the interior: white, hairline
-     soft border, generous radius, and a shadow so subtle it reads
-     as depth rather than an effect. */
+  /* The one card style used across the interior: pure white, a
+     near-invisible warm border, a large friendly radius, and a
+     shadow so soft it reads as depth rather than an effect. */
   .card {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-line-soft);
     background: #fff;
-    border-radius: 1rem;
+    border-radius: 1.375rem;
     box-shadow:
-      0 1px 2px rgba(27, 43, 66, 0.04),
-      0 12px 32px -18px rgba(27, 43, 66, 0.12);
+      0 1px 2px rgba(74, 70, 52, 0.04),
+      0 14px 34px -20px rgba(74, 70, 52, 0.14);
   }
 
   /* Interactive cards: the lift is shadow-only, never movement. */
@@ -54,10 +66,10 @@ button:focus-visible {
       border-color 240ms ease;
   }
   .card-hover:hover {
-    border-color: #cfdce9;
+    border-color: var(--color-line);
     box-shadow:
-      0 2px 4px rgba(27, 43, 66, 0.05),
-      0 18px 42px -18px rgba(27, 43, 66, 0.18);
+      0 2px 4px rgba(74, 70, 52, 0.05),
+      0 20px 44px -20px rgba(74, 70, 52, 0.2);
   }
 
   /* Interior section headings — one size, one weight, everywhere. */
@@ -65,7 +77,7 @@ button:focus-visible {
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.01em;
-    color: var(--color-neutral-900);
+    color: var(--color-stone-900);
   }
 
   /* Numbers that should line up in columns (stats, timestamps). */

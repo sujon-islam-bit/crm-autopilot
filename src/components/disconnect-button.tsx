@@ -14,7 +14,7 @@ export default function DisconnectButton({ provider, label }: { provider: string
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="mt-4 self-start text-sm font-semibold text-neutral-400 transition hover:text-red-600"
+        className="mt-4 self-start text-sm font-semibold text-stone-400 transition hover:text-red-600"
       >
         Disconnect
       </button>
@@ -22,7 +22,7 @@ export default function DisconnectButton({ provider, label }: { provider: string
   }
   return (
     <span className="mt-4 flex items-center gap-3 self-start">
-      <span className="text-[13.5px] text-neutral-500">Disconnect {label}?</span>
+      <span className="text-[13.5px] text-stone-500">Disconnect {label}?</span>
       <button
         onClick={() =>
           start(async () => {
@@ -38,7 +38,7 @@ export default function DisconnectButton({ provider, label }: { provider: string
       </button>
       <button
         onClick={() => setConfirming(false)}
-        className="text-[13.5px] font-semibold text-neutral-500 hover:text-neutral-800"
+        className="text-[13.5px] font-semibold text-stone-500 hover:text-stone-800"
       >
         Keep it
       </button>
