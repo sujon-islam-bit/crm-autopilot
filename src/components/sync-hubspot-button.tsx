@@ -21,7 +21,7 @@ export default function SyncHubspotButton() {
           })
         }
         disabled={busy}
-        className="rounded-lg border-[1.5px] border-neutral-200 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-50"
+        className="rounded-xl border-[1.5px] border-line bg-white px-5 py-2.5 text-sm font-semibold text-neutral-700 shadow-[0_1px_2px_rgba(27,43,66,0.05)] transition duration-200 hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50"
       >
         {busy ? "Syncing…" : "Sync deals"}
       </button>

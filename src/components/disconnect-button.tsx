@@ -14,14 +14,14 @@ export default function DisconnectButton({ provider, label }: { provider: string
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="mt-4 text-sm font-semibold text-neutral-400 transition hover:text-red-600"
+        className="mt-4 self-start text-sm font-semibold text-neutral-400 transition hover:text-red-600"
       >
         Disconnect
       </button>
     );
   }
   return (
-    <span className="mt-4 flex items-center gap-3">
+    <span className="mt-4 flex items-center gap-3 self-start">
       <span className="text-[13.5px] text-neutral-500">Disconnect {label}?</span>
       <button
         onClick={() =>

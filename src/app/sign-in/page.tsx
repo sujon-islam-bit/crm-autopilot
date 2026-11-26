@@ -19,7 +19,7 @@ async function SignInInner() {
   if (user) redirect("/dashboard");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-shell via-canvas to-white px-4 py-10">
       <SignInForm />
     </main>
   );

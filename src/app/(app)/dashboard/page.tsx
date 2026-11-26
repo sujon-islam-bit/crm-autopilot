@@ -8,10 +8,21 @@ import { getMyWorkspace, requireUser } from "@/lib/session";
 const STAGES = ["New", "Contacted", "Meeting booked", "Proposal sent", "Negotiation", "Won"];
 
 const FLAG_LABEL: Record<string, { label: string; style: string }> = {
-  going_cold: { label: "Going cold", style: "bg-red-50 text-red-700" },
-  no_reply: { label: "No reply yet", style: "bg-amber-50 text-amber-700" },
-  promise_due: { label: "Promise due", style: "bg-brand-soft text-brand" },
+  going_cold: { label: "Going cold", style: "bg-red-50 text-red-700 ring-red-600/15" },
+  no_reply: { label: "No reply yet", style: "bg-amber-50 text-amber-700 ring-amber-600/15" },
+  promise_due: { label: "Promise due", style: "bg-brand-soft text-brand ring-brand/20" },
 };
+
+const statIconProps = {
+  width: 16,
+  height: 16,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.9,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
 
 /**
  * The home screen: a morning brief, the numbers that matter, the deals
@@ -98,22 +109,22 @@ export default async function DashboardPage() {
       </header>
 
       {!hubspotConnected && (
-        <section className="rounded-2xl border-2 border-dashed border-brand/40 bg-brand-soft/50 p-6">
-          <h2 className="text-lg font-bold text-neutral-900">Switch on the autopilot</h2>
+        <section className="rounded-2xl border border-brand/25 bg-gradient-to-br from-brand-soft via-white to-white p-6 shadow-[0_12px_32px_-18px_rgba(62,124,177,0.35)]">
+          <h2 className="text-lg font-bold tracking-[-0.01em] text-neutral-900">Switch on the autopilot</h2>
           <p className="mt-1 max-w-lg text-[15px] leading-relaxed text-neutral-600">
             Connect HubSpot and your team&apos;s Gmail + Calendar. From then on, this page fills
             itself: updates to approve, deals that need you, and a brief every morning.
           </p>
           <Link
             href="/connections"
-            className="mt-4 inline-block rounded-xl bg-neutral-900 px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-neutral-700"
+            className="mt-4 inline-block rounded-xl bg-neutral-900 px-6 py-3 text-[15px] font-semibold text-white shadow-[0_8px_18px_-8px_rgba(23,23,23,0.6)] transition duration-200 hover:bg-neutral-700"
           >
             Connect your apps →
           </Link>
         </section>
       )}
 
-      <section className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
+      <section className="card bg-gradient-to-br from-brand-soft via-white to-white px-5 py-4">
         <p className="text-[13px] font-bold uppercase tracking-wide text-brand">Morning brief</p>
         <p className="mt-1 text-[15px] leading-relaxed text-neutral-600">
           In the last 24 hours the AI proposed <b className="text-neutral-900">{proposedYesterday}</b>{" "}
@@ -124,38 +135,87 @@ export default async function DashboardPage() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: "Open deals", value: String(openDeals.length) },
-          { label: "Pipeline value", value: money(pipelineValue) },
-          { label: "Approvals waiting", value: String(pendingCount) },
-          { label: "Promises due today", value: String(tasksDue) },
+          {
+            label: "Open deals",
+            value: String(openDeals.length),
+            chip: "bg-brand-soft text-brand",
+            icon: (
+              <svg {...statIconProps}>
+                <rect x="3" y="7.5" width="18" height="12" rx="2.5" />
+                <path d="M9 7.5V6.2A2.2 2.2 0 0 1 11.2 4h1.6A2.2 2.2 0 0 1 15 6.2v1.3" />
+                <path d="M3 12.8h18" />
+              </svg>
+            ),
+          },
+          {
+            label: "Pipeline value",
+            value: money(pipelineValue),
+            chip: "bg-emerald-50 text-emerald-600",
+            icon: (
+              <svg {...statIconProps}>
+                <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+                <circle cx="12" cy="12" r="2.7" />
+                <path d="M6.2 9.8h.01M17.8 14.2h.01" strokeWidth={2.6} />
+              </svg>
+            ),
+          },
+          {
+            label: "Approvals waiting",
+            value: String(pendingCount),
+            chip: "bg-amber-50 text-amber-600",
+            icon: (
+              <svg {...statIconProps}>
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="m8.5 12.4 2.4 2.4 4.6-5.3" />
+              </svg>
+            ),
+          },
+          {
+            label: "Promises due today",
+            value: String(tasksDue),
+            chip: "bg-violet-50 text-violet-600",
+            icon: (
+              <svg {...statIconProps}>
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 7.5V12l3 2" />
+              </svg>
+            ),
+          },
         ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_6px_20px_rgba(30,40,60,0.04)]"
-          >
-            <p className="text-[26px] font-extrabold tracking-tight text-neutral-900">{s.value}</p>
-            <p className="mt-0.5 text-[13px] font-medium text-neutral-400">{s.label}</p>
+          <div key={s.label} className="card card-hover p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="tnum text-[26px] font-extrabold tracking-tight text-neutral-900">
+                  {s.value}
+                </p>
+                <p className="mt-0.5 text-[13px] font-medium text-neutral-400">{s.label}</p>
+              </div>
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[10px] ${s.chip}`}>
+                {s.icon}
+              </span>
+            </div>
           </div>
         ))}
       </section>
 
       <section>
-        <h2 className="mb-3 text-[15px] font-bold text-neutral-900">Pipeline overview</h2>
+        <h2 className="section-title mb-3">Pipeline overview</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {STAGES.map((stage) => {
             const row = stageMap.get(stage);
             return (
-              <div
-                key={stage}
-                className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_6px_20px_rgba(30,40,60,0.04)]"
-              >
-                <p className="text-[12.5px] font-semibold uppercase leading-tight tracking-wide text-neutral-400">
+              <div key={stage} className="card card-hover p-4">
+                <p className="flex items-center gap-1.5 text-[12.5px] font-semibold uppercase leading-tight tracking-wide text-neutral-400">
+                  <span
+                    aria-hidden
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${stage === "Won" ? "bg-emerald-400" : "bg-brand/50"}`}
+                  />
                   {stage}
                 </p>
-                <p className="mt-1.5 text-xl font-extrabold text-neutral-900">
+                <p className="tnum mt-2 text-xl font-extrabold tracking-tight text-neutral-900">
                   {row?._count._all ?? 0}
                 </p>
-                <p className="text-[13px] text-neutral-500">{money(row?._sum.amount ?? 0)}</p>
+                <p className="tnum text-[13px] text-neutral-500">{money(row?._sum.amount ?? 0)}</p>
               </div>
             );
           })}
@@ -164,27 +224,32 @@ export default async function DashboardPage() {
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-[15px] font-bold text-neutral-900">Needs your attention</h2>
+          <h2 className="section-title mb-3">Needs your attention</h2>
           {attention.length === 0 ? (
-            <p className="rounded-2xl border border-neutral-200 bg-white p-5 text-[14.5px] text-neutral-500">
-              Nothing is going cold right now. The AI keeps watching every deal.
-            </p>
+            <div className="card flex flex-col items-center px-5 py-8 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-brand">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="8.5" />
+                  <path d="m8.5 12.4 2.4 2.4 4.6-5.3" />
+                </svg>
+              </span>
+              <p className="mt-3 max-w-xs text-[14.5px] leading-relaxed text-neutral-500">
+                Nothing is going cold right now. The AI keeps watching every deal.
+              </p>
+            </div>
           ) : (
             <ul className="space-y-3">
               {attention.map((deal) => {
                 const flag = deal.healthFlag ? FLAG_LABEL[deal.healthFlag] : null;
                 const silent = daysSilent(deal.lastActivityAt);
                 return (
-                  <li
-                    key={deal.id}
-                    className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_6px_20px_rgba(30,40,60,0.04)]"
-                  >
+                  <li key={deal.id} className="card card-hover p-4">
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[15px] font-bold text-neutral-900">
+                        <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-neutral-900">
                           {deal.company ?? deal.name}
                         </p>
-                        <p className="truncate text-[13.5px] text-neutral-500">
+                        <p className="tnum truncate text-[13.5px] text-neutral-500">
                           {deal.name} · {money(deal.amount, deal.currency)}
                           {silent != null && silent > 0 ? ` · ${silent}d silent` : ""}
                         </p>
@@ -196,7 +261,7 @@ export default async function DashboardPage() {
                       </div>
                       {flag && (
                         <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${flag.style}`}
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${flag.style}`}
                         >
                           {flag.label}
                         </span>
@@ -208,22 +273,32 @@ export default async function DashboardPage() {
             </ul>
           )}
 
-          <h2 className="mb-3 mt-8 text-[15px] font-bold text-neutral-900">Latest AI activity</h2>
+          <h2 className="section-title mb-3 mt-8">Latest AI activity</h2>
           {activity.length === 0 ? (
-            <p className="rounded-2xl border border-neutral-200 bg-white p-5 text-[14.5px] text-neutral-500">
-              No activity yet. Connect your apps and the AI&apos;s work will show here, in order.
-            </p>
+            <div className="card flex flex-col items-center px-5 py-8 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-brand">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12h4l2.5-6.5 4 13L16 12h5" />
+                </svg>
+              </span>
+              <p className="mt-3 max-w-xs text-[14.5px] leading-relaxed text-neutral-500">
+                No activity yet. Connect your apps and the AI&apos;s work will show here, in order.
+              </p>
+            </div>
           ) : (
-            <ul className="divide-y divide-neutral-100 rounded-2xl border border-neutral-200 bg-white shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
+            <ul className="card divide-y divide-line-soft overflow-hidden">
               {activity.map((event) => (
-                <li key={event.id} className="flex items-baseline gap-3 px-4 py-3">
+                <li
+                  key={event.id}
+                  className="flex items-baseline gap-3 px-4 py-3 transition duration-200 hover:bg-canvas"
+                >
                   <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold capitalize text-neutral-500">
                     {event.action}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[14px] text-neutral-700">
                     {event.summary}
                   </span>
-                  <span className="shrink-0 text-xs text-neutral-400">
+                  <span className="tnum shrink-0 text-xs text-neutral-400">
                     {timeAgo(event.createdAt)}
                   </span>
                 </li>
@@ -234,15 +309,23 @@ export default async function DashboardPage() {
 
         <section>
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-[15px] font-bold text-neutral-900">Waiting for your approval</h2>
+            <h2 className="section-title">Waiting for your approval</h2>
             <Link href="/approvals" className="text-[13.5px] font-semibold text-brand hover:underline">
               See all →
             </Link>
           </div>
           {pending.length === 0 ? (
-            <p className="rounded-2xl border border-neutral-200 bg-white p-5 text-[14.5px] text-neutral-500">
-              All caught up. New proposals appear here the moment the AI finds something.
-            </p>
+            <div className="card flex flex-col items-center px-5 py-8 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-brand">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3.5 13.5h4.2l1.6 2.7h5.4l1.6-2.7h4.2" />
+                  <path d="M5.4 5h13.2a1.9 1.9 0 0 1 1.9 1.9v10.2a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9V6.9A1.9 1.9 0 0 1 5.4 5Z" />
+                </svg>
+              </span>
+              <p className="mt-3 max-w-xs text-[14.5px] leading-relaxed text-neutral-500">
+                All caught up. New proposals appear here the moment the AI finds something.
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
               {pending.map((p) => (

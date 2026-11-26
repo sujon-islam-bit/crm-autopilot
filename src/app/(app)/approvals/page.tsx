@@ -52,13 +52,21 @@ export default async function ApprovalsPage() {
       </header>
 
       <section>
-        <h2 className="mb-3 text-[15px] font-bold text-neutral-900">
+        <h2 className="section-title mb-3">
           Waiting ({pending.length})
         </h2>
         {pending.length === 0 ? (
-          <p className="rounded-2xl border border-neutral-200 bg-white p-5 text-[14.5px] text-neutral-500">
-            Nothing waiting. When the AI reads a new email or meeting, its proposals land here.
-          </p>
+          <div className="card flex flex-col items-center px-5 py-10 text-center">
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-brand">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3.5 13.5h4.2l1.6 2.7h5.4l1.6-2.7h4.2" />
+                <path d="M5.4 5h13.2a1.9 1.9 0 0 1 1.9 1.9v10.2a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9V6.9A1.9 1.9 0 0 1 5.4 5Z" />
+              </svg>
+            </span>
+            <p className="mt-3 max-w-sm text-[14.5px] leading-relaxed text-neutral-500">
+              Nothing waiting. When the AI reads a new email or meeting, its proposals land here.
+            </p>
+          </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {pending.map((p) => (
@@ -70,7 +78,7 @@ export default async function ApprovalsPage() {
 
       {decided.length > 0 && (
         <section>
-          <h2 className="mb-3 text-[15px] font-bold text-neutral-900">Decided</h2>
+          <h2 className="section-title mb-3">Decided</h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {decided.map((p) => (
               <ProposalCard key={p.id} proposal={toView(p)} />

@@ -27,19 +27,19 @@ export default async function SettingsPage() {
         </h1>
       </header>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
-        <h2 className="text-[16px] font-bold text-neutral-900">Your profile</h2>
+      <section className="card p-6">
+        <h2 className="text-[16px] font-bold tracking-[-0.01em] text-neutral-900">Your profile</h2>
         <form action={saveName} className="mt-4 flex flex-col gap-3 sm:flex-row">
           <input
             name="name"
             defaultValue={user.name ?? ""}
             placeholder="Your name"
             maxLength={60}
-            className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 sm:max-w-xs"
+            className="w-full rounded-xl border border-line px-4 py-2.5 shadow-[inset_0_1px_2px_rgba(27,43,66,0.04)] text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 sm:max-w-xs"
           />
           <button
             type="submit"
-            className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-700"
+            className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(23,23,23,0.6)] transition duration-200 hover:bg-neutral-700"
           >
             Save name
           </button>
@@ -49,27 +49,27 @@ export default async function SettingsPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
-        <h2 className="text-[16px] font-bold text-neutral-900">Workspace</h2>
+      <section className="card p-6">
+        <h2 className="text-[16px] font-bold tracking-[-0.01em] text-neutral-900">Workspace</h2>
         <form action={renameWorkspace} className="mt-4 flex flex-col gap-3 sm:flex-row">
           <input
             name="name"
             defaultValue={mine.workspace.name}
             maxLength={60}
-            className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 sm:max-w-xs"
+            className="w-full rounded-xl border border-line px-4 py-2.5 shadow-[inset_0_1px_2px_rgba(27,43,66,0.04)] text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/25 sm:max-w-xs"
           />
           <button
             type="submit"
-            className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-700"
+            className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(23,23,23,0.6)] transition duration-200 hover:bg-neutral-700"
           >
             Save name
           </button>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
-        <h2 className="text-[16px] font-bold text-neutral-900">Team ({members.length})</h2>
-        <ul className="mt-4 divide-y divide-neutral-100">
+      <section className="card p-6">
+        <h2 className="text-[16px] font-bold tracking-[-0.01em] text-neutral-900">Team ({members.length})</h2>
+        <ul className="mt-4 divide-y divide-line-soft">
           {members.map((m) => (
             <li key={m.id} className="flex items-center gap-3 py-3">
               <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-soft text-[13px] font-bold text-brand">
@@ -81,7 +81,7 @@ export default async function SettingsPage() {
                 </p>
                 <p className="truncate text-[13px] text-neutral-400">{m.user.email}</p>
               </div>
-              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold capitalize text-neutral-500">
+              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold capitalize text-neutral-500 ring-1 ring-inset ring-neutral-500/10">
                 {m.role}
               </span>
             </li>
@@ -92,8 +92,8 @@ export default async function SettingsPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_6px_20px_rgba(30,40,60,0.04)]">
-        <h2 className="text-[16px] font-bold text-neutral-900">Plan</h2>
+      <section className="card p-6">
+        <h2 className="text-[16px] font-bold tracking-[-0.01em] text-neutral-900">Plan</h2>
         <p className="mt-2 text-[15px] text-neutral-600">
           You are on the <b className="capitalize">{mine.workspace.plan}</b> plan — free while in
           early access. Paid plans are flat per rep: Starter $19, Growth $29. No credits, no

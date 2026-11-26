@@ -48,7 +48,7 @@ export default function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-8 shadow-[0_24px_50px_rgba(30,40,60,0.08)]">
+    <div className="w-full max-w-sm rounded-3xl border border-line bg-white p-8 shadow-[0_2px_6px_rgba(27,43,66,0.05),0_28px_56px_-24px_rgba(27,43,66,0.22)]">
       <p className="text-xl font-bold tracking-tight">
         CRM <span className="font-normal">Autopilot</span>
       </p>
@@ -69,12 +69,12 @@ export default function SignInForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@company.com"
-            className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-[15px] outline-none placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/25"
+            className="w-full rounded-xl border border-line px-4 py-3 shadow-[inset_0_1px_2px_rgba(27,43,66,0.04)] text-[15px] outline-none placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/25"
           />
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-xl bg-neutral-900 py-3 text-[15px] font-semibold text-white transition hover:bg-neutral-700 disabled:opacity-50"
+            className="w-full rounded-xl bg-neutral-900 py-3 text-[15px] font-semibold text-white shadow-[0_10px_22px_-10px_rgba(23,23,23,0.65)] transition duration-200 hover:bg-neutral-700 disabled:opacity-50 disabled:shadow-none"
           >
             {busy ? "Sending…" : "Email me a code"}
           </button>
@@ -88,12 +88,12 @@ export default function SignInForm() {
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="123456"
-            className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-center text-lg font-semibold tracking-[0.4em] outline-none placeholder:text-neutral-300 focus:border-brand focus:ring-2 focus:ring-brand/25"
+            className="w-full rounded-xl border border-line px-4 py-3 shadow-[inset_0_1px_2px_rgba(27,43,66,0.04)] text-center text-lg font-semibold tracking-[0.4em] outline-none placeholder:text-neutral-300 focus:border-brand focus:ring-2 focus:ring-brand/25"
           />
           <button
             type="submit"
             disabled={busy || code.length !== 6}
-            className="w-full rounded-xl bg-neutral-900 py-3 text-[15px] font-semibold text-white transition hover:bg-neutral-700 disabled:opacity-50"
+            className="w-full rounded-xl bg-neutral-900 py-3 text-[15px] font-semibold text-white shadow-[0_10px_22px_-10px_rgba(23,23,23,0.65)] transition duration-200 hover:bg-neutral-700 disabled:opacity-50 disabled:shadow-none"
           >
             {busy ? "Checking…" : "Sign in"}
           </button>

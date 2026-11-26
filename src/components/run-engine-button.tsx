@@ -28,7 +28,7 @@ export default function RunEngineButton() {
           })
         }
         disabled={busy}
-        className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-50"
+        className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(62,124,177,0.8)] transition duration-200 hover:bg-brand-dark disabled:opacity-50 disabled:shadow-none"
       >
         {busy ? "Reading…" : "Check for updates"}
       </button>

@@ -91,14 +91,14 @@ export default async function ConnectionsPage({
       </header>
 
       {notice.connected && (
-        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[14.5px] font-medium text-emerald-800">
+        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[14.5px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-600/15">
           {notice.connected === "hubspot"
             ? "HubSpot is connected. Your deals are syncing."
             : "Gmail + Calendar are connected. The AI can now read new activity."}
         </p>
       )}
       {notice.error && (
-        <p className="rounded-xl bg-red-50 px-4 py-3 text-[14.5px] font-medium text-red-700">
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-[14.5px] font-medium text-red-700 ring-1 ring-inset ring-red-600/15">
           {ERROR_TEXT[notice.error] ?? "Something went wrong with that connection. Try again."}
         </p>
       )}
@@ -107,25 +107,23 @@ export default async function ConnectionsPage({
         {PROVIDERS.map((p) => {
           const conn = byProvider.get(p.id);
           return (
-            <article
-              key={p.id}
-              className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_6px_20px_rgba(30,40,60,0.04)]"
-            >
+            <article key={p.id} className="card card-hover flex h-full flex-col p-5">
               <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-[16px] font-extrabold text-brand">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-soft to-white text-[16px] font-extrabold text-brand ring-1 ring-line">
                   {p.name.slice(0, 1)}
                 </span>
-                <h2 className="text-[16px] font-bold text-neutral-900">{p.name}</h2>
+                <h2 className="text-[16px] font-bold tracking-[-0.01em] text-neutral-900">{p.name}</h2>
                 {conn ? (
-                  <span className="ml-auto rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                  <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     Connected
                   </span>
                 ) : p.v1 ? (
-                  <span className="ml-auto rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-500">
+                  <span className="ml-auto rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-500 ring-1 ring-inset ring-neutral-500/10">
                     Not connected
                   </span>
                 ) : (
-                  <span className="ml-auto rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-400">
+                  <span className="ml-auto rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-400 ring-1 ring-inset ring-neutral-500/10">
                     Coming next
                   </span>
                 )}
@@ -137,7 +135,7 @@ export default async function ConnectionsPage({
               {!conn && p.v1 && p.id === "hubspot" && hubspotConfigured() && (
                 <a
                   href="/api/connections/hubspot/connect"
-                  className="mt-4 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-700"
+                  className="mt-4 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(23,23,23,0.6)] transition duration-200 hover:bg-neutral-700"
                 >
                   Connect
                 </a>
@@ -150,7 +148,7 @@ export default async function ConnectionsPage({
               {!conn && p.v1 && p.id === "google" && connectServiceConfigured() && (
                 <a
                   href="/api/connections/google/connect"
-                  className="mt-4 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-700"
+                  className="mt-4 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(23,23,23,0.6)] transition duration-200 hover:bg-neutral-700"
                 >
                   Connect
                 </a>
@@ -163,7 +161,7 @@ export default async function ConnectionsPage({
               {!conn && p.v1 && p.id !== "hubspot" && p.id !== "google" && (
                 <button
                   disabled
-                  className="mt-4 rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white opacity-40"
+                  className="mt-4 rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white opacity-40"
                   title="This connect flow is the next build step"
                 >
                   Connect
