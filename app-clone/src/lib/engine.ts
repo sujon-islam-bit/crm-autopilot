@@ -4,6 +4,8 @@ import { audit } from "./audit";
 import { askAiJson } from "./ai";
 import { STAGES, daysSilent } from "./constants";
 import { categoryFor } from "./category";
+import { getGuardrails } from "./guardrails";
+import { recordHealthSnapshot } from "./snapshot";
 import type { Prisma } from "../generated/prisma/client";
 
 const TYPES = [
@@ -67,7 +69,10 @@ export async function runEngineForWorkspace(workspaceId: string): Promise<{
     orderBy: { occurredAt: "asc" },
     take: 30,
   });
-  if (captures.length === 0) return { proposals: 0, processed: 0 };
+  if (captures.length === 0) {
+    await recordHealthSnapshot(workspaceId);
+    return { proposals: 0, processed: 0 };
+  }
 
   const deals = await prisma.crmDeal.findMany({
     where: { workspaceId },
@@ -113,14 +118,23 @@ If nothing is worth proposing, reply [].`;
   const raw = await askAiJson(prompt);
   if (raw === null) {
     // The AI did not answer — captures must NOT be marked processed.
+    await recordHealthSnapshot(workspaceId);
     return { proposals: 0, processed: 0, error: "AI unavailable" };
   }
   const items = (Array.isArray(raw) ? raw : []) as AiItem[];
+
+  // Guardrail effect: with Auto-enrich off, the engine still reads and
+  // proposes everything else, but creates NO enrichment proposals.
+  const guardrails = await getGuardrails(workspaceId);
+  const enrichAllowed = guardrails.effective.autoEnrich;
 
   let created = 0;
   for (const item of items) {
     if (!item.type || !TYPES.includes(item.type as (typeof TYPES)[number])) continue;
     if (!item.title) continue;
+    if (!enrichAllowed && categoryFor(item.type, (item.detail ?? {}) as Record<string, unknown>) === "enrichment") {
+      continue;
+    }
     const idx = typeof item.captureIndex === "number" ? item.captureIndex : -1;
     const capture = idx >= 0 && idx < captures.length ? captures[idx] : captures[0];
     const detail = (item.detail ?? {}) as Record<string, unknown>;
@@ -175,5 +189,6 @@ If nothing is worth proposing, reply [].`;
     data: { processedAt: new Date() },
   });
   await refreshHealthFlags(workspaceId);
+  await recordHealthSnapshot(workspaceId);
   return { proposals: created, processed: captures.length };
 }

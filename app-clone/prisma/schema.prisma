@@ -85,6 +85,8 @@ model Workspace {
   proposals   Proposal[]
   audits      AuditEvent[]
   signatures  SignatureRequest[]
+  snapshots   HealthSnapshot[]
+  guardrails  GuardrailSetting?
 
   @@map("workspace")
 }
@@ -228,4 +230,44 @@ model SignatureRequest {
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("signature_request")
+}
+
+// One row per workspace per day, written whenever a health scan runs (the
+// engine's run path). Powers the Data Cleanup "Data Quality Trend" — every
+// point is a real scan's counts, never a drawn curve.
+model HealthSnapshot {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  date          DateTime // start of day (local)
+  score         Int
+  dupCount      Int
+  missingCount  Int
+  unloggedCount Int
+  staleCount    Int
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, date])
+  @@map("health_snapshot")
+}
+
+// Data Guardrails (Data Cleanup): per-workspace prevention rules. A missing
+// row means the defaults — everything on. lastDupCount freezes the duplicate
+// count at the moment detection was switched off, so dashboards keep showing
+// the last computed figure instead of a fake zero.
+model GuardrailSetting {
+  id                  String    @id @default(cuid())
+  workspaceId         String    @unique
+  enabled             Boolean   @default(true) // master switch
+  autoEnrich          Boolean   @default(true)
+  preventInvalidStage Boolean   @default(true)
+  requireNextStep     Boolean   @default(true)
+  detectDuplicates    Boolean   @default(true)
+  flagSuspicious      Boolean   @default(true)
+  lastDupCount        Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("guardrail_setting")
 }

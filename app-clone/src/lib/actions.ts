@@ -139,8 +139,225 @@ export async function proposeFixAction(kind: string, label: string, dealExternal
   return { ok: true };
 }
 
-export async function saveProfileAction(form: FormData) {
-  const { user } = await requireWorkspace();
+// ---------- Data Cleanup actions ----------
+// Every one of these creates a Proposal that lands in Approvals — nothing
+// is applied from Data Cleanup directly (the product's trust rule).
+
+export async function proposeMergeAction(masterId: string, duplicateId: string) {
+  const { workspace } = await requireWorkspace();
+  if (masterId === duplicateId) return { ok: false, error: "Pick two different records" };
+  const [master, dup] = await Promise.all([
+    prisma.crmContact.findFirst({ where: { id: masterId, workspaceId: workspace.id } }),
+    prisma.crmContact.findFirst({ where: { id: duplicateId, workspaceId: workspace.id } }),
+  ]);
+  if (!master || !dup) return { ok: false, error: "Records not found" };
+  const pendingMerges = await prisma.proposal.findMany({
+    where: { workspaceId: workspace.id, status: "pending", type: "hygiene_fix" },
+    select: { detail: true },
+  });
+  const already = pendingMerges.some((p) => {
+    const d = (p.detail ?? {}) as Record<string, unknown>;
+    return d.kind === "merge" && (d.masterId === masterId || d.duplicateId === masterId || d.masterId === duplicateId || d.duplicateId === duplicateId);
+  });
+  if (already) return { ok: false, error: "A merge for this pair is already waiting in Approvals" };
+  await prisma.proposal.create({
+    data: {
+      workspaceId: workspace.id,
+      type: "hygiene_fix",
+      category: categoryFor("hygiene_fix", { kind: "merge" }),
+      title: "Merge Duplicate Contacts",
+      detail: {
+        kind: "merge",
+        masterId,
+        duplicateId,
+        description: `Two contact records exist for ${master.name}${master.company ? ` at ${master.company}` : ""}. Merge them into one master record.`,
+        subline: `${dup.email ?? master.email ?? ""} → ${master.name}`,
+        diffRows: [
+          { field: "Master Record", current: master.name, proposed: master.name },
+          { field: "Duplicate", current: `${dup.name} (2nd record)`, proposed: "Merged & removed" },
+        ],
+        cascade: [{ icon: "user", text: `Keeps one ${master.name} record in Contacts` }],
+        iconKind: "users",
+      } as Prisma.InputJsonValue,
+      reason: "Created from Data Cleanup — the two records share the same email address. Review and approve to merge.",
+      source: "hygiene",
+      confidence: 85,
+      status: "pending",
+    },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export async function proposeMissingFixAction(contactId: string) {
+  const { workspace } = await requireWorkspace();
+  const contact = await prisma.crmContact.findFirst({ where: { id: contactId, workspaceId: workspace.id } });
+  if (!contact) return { ok: false, error: "Contact not found" };
+  // Re-derive the suggestion server-side — the only honest source the
+  // Missing Fields tab offers: the title carried by the duplicate record.
+  if (contact.title) return { ok: false, error: "This record is not missing a title" };
+  const twin = contact.email
+    ? await prisma.crmContact.findFirst({
+        where: {
+          workspaceId: workspace.id,
+          id: { not: contact.id },
+          email: { equals: contact.email, mode: "insensitive" },
+          title: { not: null },
+        },
+      })
+    : null;
+  if (!twin?.title) return { ok: false, error: "No suggestion exists for this record yet" };
+  const pendingEnrich = await prisma.proposal.findMany({
+    where: { workspaceId: workspace.id, status: "pending", type: "hygiene_fix" },
+    select: { detail: true },
+  });
+  const already = pendingEnrich.some((p) => {
+    const d = (p.detail ?? {}) as Record<string, unknown>;
+    return d.kind === "enrich" && d.contactId === contactId;
+  });
+  if (already) return { ok: false, error: "Already waiting in Approvals" };
+  await prisma.proposal.create({
+    data: {
+      workspaceId: workspace.id,
+      type: "hygiene_fix",
+      category: categoryFor("hygiene_fix", { kind: "enrich" }),
+      title: `Enrich Contact: ${contact.name}`,
+      detail: {
+        kind: "enrich",
+        field: "title",
+        contactId,
+        toTitle: twin.title,
+        subline: "Add title from the duplicate record",
+        description: `Fill in ${contact.name}'s missing Title — the duplicate record for ${contact.email} lists "${twin.title}".`,
+        diffRows: [{ field: "Title", current: "—", proposed: twin.title, edit: "text" }],
+      } as Prisma.InputJsonValue,
+      reason: "Created from Data Cleanup — the value comes from the duplicate record with the same email.",
+      source: "hygiene",
+      confidence: 85,
+      status: "pending",
+    },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export async function proposeStaleFollowupAction(dealExternalId: string) {
+  const { workspace } = await requireWorkspace();
+  const deal = await prisma.crmDeal.findFirst({ where: { workspaceId: workspace.id, externalId: dealExternalId } });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  const already = await prisma.proposal.findFirst({
+    where: {
+      workspaceId: workspace.id,
+      status: "pending",
+      dealExternalId,
+      type: { in: ["followup_draft", "task"] },
+    },
+  });
+  if (already) return { ok: false, error: "A follow-up for this deal is already waiting in Approvals" };
+  const days = Math.floor((Date.now() - deal.lastActivityAt.getTime()) / 86400000);
+  const contact = deal.company
+    ? await prisma.crmContact.findFirst({
+        where: { workspaceId: workspace.id, company: deal.company },
+        orderBy: { name: "asc" },
+      })
+    : null;
+  const firstName = contact?.name.split(" ")[0];
+  await prisma.proposal.create({
+    data: {
+      workspaceId: workspace.id,
+      type: "followup_draft",
+      category: categoryFor("followup_draft"),
+      title: `Draft Follow-up: ${deal.name}`,
+      detail: {
+        toName: contact?.name ?? deal.company ?? deal.name,
+        toEmail: contact?.email ?? "",
+        subject: `Following up — ${deal.name}`,
+        draftBody: `Hi ${firstName ?? "there"},\n\nJust checking in on ${deal.name} — it's been ${days} days since we last spoke, and I wanted to make sure you have everything you need from us.\n\nHappy to pick things up whenever you're ready.\n\nBest regards`,
+        description: `Draft a follow-up for ${deal.name} — the deal has had no activity for ${days} days at ${deal.stage}.`,
+        subline: "Based on a stale deal in Data Cleanup",
+      } as Prisma.InputJsonValue,
+      reason: `Created from Data Cleanup — no activity for ${days} days at ${deal.stage}. Nothing is sent until you approve it.`,
+      source: "hygiene",
+      confidence: 85,
+      dealExternalId,
+      status: "pending",
+    },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export async function proposeLogEntryAction(captureId: string) {
+  const { workspace } = await requireWorkspace();
+  const capture = await prisma.capture.findFirst({ where: { id: captureId, workspaceId: workspace.id } });
+  if (!capture) return { ok: false, error: "Meeting not found" };
+  const already = await prisma.proposal.findFirst({
+    where: { workspaceId: workspace.id, status: "pending", captureId },
+  });
+  if (already) return { ok: false, error: "Already waiting in Approvals" };
+  await prisma.proposal.create({
+    data: {
+      workspaceId: workspace.id,
+      type: "hygiene_fix",
+      category: categoryFor("hygiene_fix", { kind: "unlogged" }),
+      title: `Log Meeting: ${capture.title}`,
+      detail: {
+        kind: "unlogged",
+        description: `Log "${capture.title}" into the CRM so the meeting is on record.`,
+        subline: capture.title,
+        diffRows: [{ field: "Meeting", current: "Not logged", proposed: "Log entry added" }],
+        iconKind: "calendar",
+      } as Prisma.InputJsonValue,
+      reason: "Created from Data Cleanup — the AI read this meeting but no CRM update came out of it.",
+      source: "hygiene",
+      confidence: 85,
+      captureId,
+      status: "pending",
+    },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export async function saveGuardrailsAction(input: {
+  enabled: boolean;
+  autoEnrich: boolean;
+  preventInvalidStage: boolean;
+  requireNextStep: boolean;
+  detectDuplicates: boolean;
+  flagSuspicious: boolean;
+}) {
+  const { workspace } = await requireWorkspace();
+  const { countDuplicateExtras } = await import("./hygiene");
+  const existing = await prisma.guardrailSetting.findUnique({ where: { workspaceId: workspace.id } });
+  const wasEffectiveDetect = (existing?.enabled ?? true) && (existing?.detectDuplicates ?? true);
+  const nowEffectiveDetect = input.enabled && input.detectDuplicates;
+  // Freeze the duplicate count at the moment detection stops being
+  // effective, so dashboards keep showing the last computed figure.
+  let lastDupCount: number | undefined;
+  if (!nowEffectiveDetect && (wasEffectiveDetect || existing?.lastDupCount == null)) {
+    lastDupCount = await countDuplicateExtras(workspace.id);
+  }
+  const data = {
+    enabled: input.enabled,
+    autoEnrich: input.autoEnrich,
+    preventInvalidStage: input.preventInvalidStage,
+    requireNextStep: input.requireNextStep,
+    detectDuplicates: input.detectDuplicates,
+    flagSuspicious: input.flagSuspicious,
+    ...(lastDupCount !== undefined ? { lastDupCount } : {}),
+  };
+  await prisma.guardrailSetting.upsert({
+    where: { workspaceId: workspace.id },
+    create: { workspaceId: workspace.id, ...data, lastDupCount: lastDupCount ?? null },
+    update: data,
+  });
+  revalidatePath("/hygiene");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function saveProfileAction(form: FormData) {  const { user } = await requireWorkspace();
   const name = String(form.get("name") || "").trim();
   if (name) await prisma.user.update({ where: { id: user.id }, data: { name } });
   revalidatePath("/settings");

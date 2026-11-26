@@ -50,6 +50,8 @@ const wk = (weekOffset: number, dayIdx: number, h = 10) => {
 
 // ---------- clean slate ----------
 await prisma.auditEvent.deleteMany();
+await prisma.healthSnapshot.deleteMany();
+await prisma.guardrailSetting.deleteMany();
 await prisma.proposal.deleteMany();
 await prisma.capture.deleteMany();
 await prisma.signatureRequest.deleteMany();
@@ -220,16 +222,23 @@ const named: [string, string, string, string][] = [
   ["Grace Liu", "grace@kiteandanchor.com", "Kite & Anchor", "Partner"],
   ["Noah Berg", "noah@northbeam.io", "Northbeam", "VP Sales"],
 ];
-for (const [name, email, company, title] of named) {
-  await prisma.crmContact.create({ data: { workspaceId: W, name, email, company, title, industry: null } });
+// createdAt is backdated 32–40 days (Data Cleanup trend reconstruction:
+// every named contact already existed across the whole 30-day snapshot
+// window — only their industry is missing, which is not a hygiene count).
+const namedCreated = [32, 33, 34, 35, 36, 37, 38, 39, 40, 33, 34, 35];
+for (let i = 0; i < named.length; i++) {
+  const [name, email, company, title] = named[i];
+  await prisma.crmContact.create({
+    data: { workspaceId: W, name, email, company, title, industry: null, createdAt: daysAgo(namedCreated[i]) },
+  });
 }
 // Jane Doe exists twice — the pair the "Merge Duplicate Contacts" proposal
 // merges. The second record is the workspace's 19th duplicate row.
 const janeMaster = await prisma.crmContact.create({
-  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software" },
+  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software", createdAt: daysAgo(35) },
 });
 const janeDuplicate = await prisma.crmContact.create({
-  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software" },
+  data: { workspaceId: W, name: "Jane Doe", email: "jane@acme.com", company: "Acme Corp", title: "Operations Director", industry: "Software", createdAt: daysAgo(6) },
 });
 // 16 contacts with a missing field (8 without email, 8 without title).
 // Anna Lindberg sits in the no-title half — she is the Enrich proposal's
@@ -251,6 +260,9 @@ for (let i = 0; i < missingNames.length; i++) {
       company: "Prospect Co",
       title: noEmail ? "Manager" : null,
       industry: fillerIndustries[i % fillerIndustries.length],
+      // Backdated 31–38 days: these records (and their missing fields)
+      // predate the 30-day snapshot window.
+      createdAt: daysAgo(31 + (i % 8)),
     },
   });
   if (missingNames[i] === "Anna Lindberg") annaId = c.id;
@@ -258,10 +270,13 @@ for (let i = 0; i < missingNames.length; i++) {
 // 18 more duplicate rows (same email as an existing contact) — with Jane's
 // second record above, duplicates total 19.
 const dupSources = [...named, ...missingNames.slice(8).map((n, i) => [n, `contact${i + 8}@example.com`, "Prospect Co", "Manager"] as const)];
+// The duplicate rows arrived across the last 22 days — their createdAt
+// spread is what the snapshot reconstruction reads.
+const dupCreated = [3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 for (let i = 0; i < 18; i++) {
   const [name, email, company, title] = dupSources[i % dupSources.length];
   await prisma.crmContact.create({
-    data: { workspaceId: W, name, email, company, title, industry: fillerIndustries[i % fillerIndustries.length] },
+    data: { workspaceId: W, name, email, company, title, industry: fillerIndustries[i % fillerIndustries.length], createdAt: daysAgo(dupCreated[i]) },
   });
 }
 
@@ -991,6 +1006,74 @@ for (let i = 0; i < 2; i++) {
   });
   await auditAt("proposed", `AI proposed: ${p.title}`, created, p.id);
   await auditAt("rejected", `Rejected: ${p.title}`, decided, p.id);
+}
+
+// ---------- health snapshots (Data Cleanup trend) ----------
+// 31 daily snapshots DERIVED from the rows above — never a freehand curve.
+// For each past day d, an issue counts when the underlying record already
+// existed at the end of that day (createdAt/occurredAt <= cutoff) and the
+// live detector's rule held as of that day:
+//   duplicate = a later-created record sharing a normalised email;
+//   missing   = a contact with no title/email, or an open deal with no owner;
+//   unlogged  = a processed meeting capture with no proposal;
+//   stale     = an open deal silent for >30 days as of that day.
+// Scores use the live formula (scoreFromCounts), so today's snapshot equals
+// the live hygiene counts exactly (19/24/31/8 -> 98). Honest shape: the
+// derived curve gently DECLINES across the month (100 -> 98) because the
+// seeded issues accumulated as data arrived; the workspace's stored +11
+// health delta predates this 30-day window.
+{
+  const { scoreFromCounts } = await import("../src/lib/hygiene");
+  const snapContacts = await prisma.crmContact.findMany({
+    where: { workspaceId: W },
+    select: { email: true, title: true, createdAt: true },
+  });
+  const byEmail = new Map<string, Date[]>();
+  for (const c of snapContacts) {
+    if (!c.email) continue;
+    const k = c.email.trim().toLowerCase();
+    byEmail.set(k, [...(byEmail.get(k) ?? []), c.createdAt]);
+  }
+  const dupExtraDates: Date[] = [];
+  for (const dates of byEmail.values()) {
+    if (dates.length < 2) continue;
+    dupExtraDates.push(...[...dates].sort((a, b) => a.getTime() - b.getTime()).slice(1));
+  }
+  const snapDeals = await prisma.crmDeal.findMany({
+    where: { workspaceId: W, stage: { notIn: ["Won", "Lost"] } },
+    select: { ownerName: true, lastActivityAt: true, createdAt: true },
+  });
+  const snapMeetings = await prisma.capture.findMany({
+    where: { workspaceId: W, kind: "meeting", processedAt: { not: null }, proposals: { none: {} } },
+    select: { occurredAt: true },
+  });
+  for (let d = 30; d >= 0; d--) {
+    const cutoff = daysAgo(d, 23); // ~end of that day (23:05), after every seeded row's hour
+    const ct = cutoff.getTime();
+    const dup = dupExtraDates.filter((t) => t.getTime() <= ct).length;
+    const missing =
+      snapContacts.filter((c) => c.createdAt.getTime() <= ct && (!c.title || !c.email)).length +
+      snapDeals.filter((x) => x.createdAt.getTime() <= ct && !x.ownerName).length;
+    const unlogged = snapMeetings.filter((c) => c.occurredAt.getTime() <= ct).length;
+    const stale = snapDeals.filter(
+      (x) => x.createdAt.getTime() <= ct && x.lastActivityAt.getTime() + 31 * 86400_000 <= ct,
+    ).length;
+    const counts = { duplicates: dup, missing, unlogged, stale };
+    const dayDate = new Date(cutoff);
+    dayDate.setHours(0, 0, 0, 0);
+    await prisma.healthSnapshot.create({
+      data: {
+        workspaceId: W,
+        date: dayDate,
+        score: scoreFromCounts(counts),
+        dupCount: dup,
+        missingCount: missing,
+        unloggedCount: unlogged,
+        staleCount: stale,
+      },
+    });
+  }
+  console.log("health snapshots seeded: 31 days");
 }
 
 const pendingCount = await prisma.proposal.count({ where: { workspaceId: W, status: "pending" } });

@@ -138,6 +138,12 @@ const P: Record<string, React.ReactNode> = {
       <path d="M14 2v6h6M9 13h6M9 17h6" />
     </>
   ),
+  list: (
+    <>
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+    </>
+  ),
   userPlus: (
     <>
       <path d="M2 21a8 8 0 0 1 13.3-5.9" />
