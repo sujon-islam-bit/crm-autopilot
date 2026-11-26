@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Better Auth ----------
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ---------- App ----------
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  plan        String   @default("trial")
+  healthScore Int?
+  healthDelta Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships Membership[]
+  connections Connection[]
+  deals       CrmDeal[]
+  contacts    CrmContact[]
+  captures    Capture[]
+  proposals   Proposal[]
+  audits      AuditEvent[]
+  signatures  SignatureRequest[]
+
+  @@map("workspace")
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        String    @default("member")
+  // Optional display override for the shell's role line (the demo persona
+  // stores "RevOps Admin"); null → the label is derived from `role`.
+  roleLabel   String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@map("membership")
+}
+
+model Connection {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  provider      String // hubspot | salesforce | google | outlook | signudoc
+  accountEmail  String?
+  data          String // AES-256-GCM encrypted JSON
+  lastSyncAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@map("connection")
+}
+
+model CrmDeal {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  externalId    String
+  source        String    @default("local") // hubspot | salesforce | local
+  name          String
+  company       String?
+  stage         String // display label
+  amount        Float?
+  currency      String    @default("USD")
+  ownerName     String?
+  closeDate     DateTime?
+  lastActivityAt DateTime @default(now())
+  healthFlag    String? // going_cold | no_reply | promise_due
+  healthNote    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, externalId])
+  @@map("crm_deal")
+}
+
+model CrmContact {
+  id          String    @id @default(cuid())
+  workspaceId String
+  externalId  String?
+  name        String
+  email       String?
+  company     String?
+  title       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("crm_contact")
+}
+
+model Capture {
+  id          String    @id @default(cuid())
+  workspaceId String
+  kind        String // email | meeting | call | chat
+  source      String // gmail | calendar | outlook | zoom | manual
+  externalId  String?
+  title       String
+  fromLabel   String?
+  body        String    @default("")
+  snippet     String    @default("")
+  occurredAt  DateTime  @default(now())
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposals   Proposal[]
+
+  @@unique([workspaceId, externalId])
+  @@map("capture")
+}
+
+model Proposal {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  type           String // deal_stage | deal_field | new_contact | new_deal | followup_draft | task | hygiene_fix
+  title          String
+  detail         Json      @default("{}")
+  reason         String    @default("")
+  source         String    @default("engine") // gmail | calendar | call | chat | hygiene | signudoc | engine
+  confidence     Int?
+  captureId      String?
+  dealExternalId String?
+  status         String    @default("pending") // pending | approved | rejected | applied | undone | failed
+  createdAt      DateTime  @default(now())
+  decidedAt      DateTime?
+  appliedAt      DateTime?
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  capture        Capture?  @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@map("proposal")
+}
+
+model AuditEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String?
+  action      String // proposed | approved | rejected | applied | undone | failed | connected | disconnected | captured | synced
+  summary     String
+  meta        Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("audit_event")
+}
+
+model SignatureRequest {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  dealExternalId String
+  title          String
+  signerName     String
+  signerEmail    String
+  envelopeId     String?
+  status         String    @default("requested") // requested | sent | completed | declined
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("signature_request")
+}

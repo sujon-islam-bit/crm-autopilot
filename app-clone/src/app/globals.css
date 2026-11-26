@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-system, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-primary: #2b6bf0;
+  --color-primary-dark: #1f55c9;
+  --color-primary-tint: #e2ebfd;
+  --color-ink: #16161d;
+  --color-ink2: #3c3f4d;
+  --color-muted: #71748a;
+  --color-faint: #9a9db0;
+  --color-line: #e7e7ef;
+  --color-canvas: #f7f7fa;
+  --color-sidebar: #f2f3fa;
+  --color-sidebar-card: #e9ebf7;
+  --color-green: #16a34a;
+  --color-green-bright: #22b573;
+  --color-green-tint: #e2f6e9;
+  --color-amber: #b97f10;
+  --color-amber-bright: #f5a623;
+  --color-amber-tint: #fdf0d7;
+  --color-purple: #8b5cf6;
+  --color-purple-tint: #efe9fe;
+  --color-red: #e5484d;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(23, 23, 40, 0.04), 0 8px 24px -18px rgba(23, 23, 40, 0.18);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+.btn-outline {
+  background: #fff;
+  color: var(--color-ink2);
+  font-weight: 500;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn-outline:hover {
+  border-color: #cfd2e0;
+  background: #fafafc;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+::selection {
+  background: #c9dbfe;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d4d6e2;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input,
+select,
+textarea {
+  outline: none;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(43, 107, 240, 0.15);
+}
