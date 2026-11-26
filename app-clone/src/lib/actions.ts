@@ -560,6 +560,93 @@ export async function disconnectAction(provider: string) {  const { workspace, u
   const { audit } = await import("./audit");
   await audit(workspace.id, "disconnected", `Disconnected ${provider}`, { userId: user.id });
   revalidatePath("/connections");
+  revalidatePath("/dashboard");
+  revalidatePath("/activity");
+  return { ok: true };
+}
+
+/** Read a connection's settings JSON (per-app preferences) as an object. */
+function connSettings(raw: unknown): {
+  apps?: Record<string, { permissions?: Record<string, boolean>; syncFrequency?: string }>;
+  reconnectedAt?: string;
+} {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as { apps?: Record<string, { permissions?: Record<string, boolean>; syncFrequency?: string }>; reconnectedAt?: string };
+  }
+  return {};
+}
+
+/** Save one catalog app's data permissions and/or sync frequency onto its
+ *  Connection row (settings JSON, keyed by app id). Real persistence — the
+ *  Connections screen reads these back on every render. */
+export async function saveConnectionAppSettingsAction(
+  appId: string,
+  patch: { permissions?: Record<string, boolean>; syncFrequency?: string },
+) {
+  const { workspace } = await requireWorkspace();
+  const { appById } = await import("./catalog");
+  const app = appById(appId);
+  if (!app) return { ok: false, error: "Unknown app" };
+  const conn = await prisma.connection.findFirst({
+    where: { workspaceId: workspace.id, provider: app.provider },
+  });
+  if (!conn) return { ok: false, error: "Not connected" };
+  const settings = connSettings(conn.settings);
+  const apps = { ...(settings.apps ?? {}) };
+  const current = apps[appId] ?? {};
+  apps[appId] = {
+    permissions: patch.permissions ?? current.permissions,
+    syncFrequency: patch.syncFrequency ?? current.syncFrequency,
+  };
+  await prisma.connection.update({
+    where: { id: conn.id },
+    data: { settings: { ...settings, apps } as Prisma.InputJsonValue },
+  });
+  revalidatePath("/connections");
+  return { ok: true };
+}
+
+/** "Sync Now" on a connected app: runs the same engine scan as Approvals'
+ *  "Check for updates", then stamps the connection's lastSyncAt and writes
+ *  a "synced" audit row. */
+export async function syncNowConnectionAction(provider: string) {
+  const { workspace, user } = await requireWorkspace();
+  const { PROVIDER_NAMES } = await import("./catalog");
+  const label = PROVIDER_NAMES[provider] ?? provider;
+  const conn = await prisma.connection.findFirst({
+    where: { workspaceId: workspace.id, provider },
+  });
+  if (!conn) return { ok: false, error: "Not connected" };
+  const r = await runEngineForWorkspace(workspace.id);
+  await prisma.connection.update({ where: { id: conn.id }, data: { lastSyncAt: new Date() } });
+  const { audit } = await import("./audit");
+  await audit(workspace.id, "synced", `Synced ${label} — checked for new activity`, { userId: user.id });
+  refresh();
+  revalidatePath("/connections");
+  revalidatePath("/activity");
+  return { ok: true, proposals: r.proposals, processed: r.processed, error: r.error };
+}
+
+/** "Reconnect": re-stamps the connection (updatedAt + a reconnectedAt mark
+ *  in settings) and writes a "connected" audit row. No fake OAuth — the
+ *  stored credentials are untouched. */
+export async function reconnectConnectionAction(provider: string) {
+  const { workspace, user } = await requireWorkspace();
+  const { PROVIDER_NAMES } = await import("./catalog");
+  const label = PROVIDER_NAMES[provider] ?? provider;
+  const conn = await prisma.connection.findFirst({
+    where: { workspaceId: workspace.id, provider },
+  });
+  if (!conn) return { ok: false, error: "Not connected" };
+  const settings = connSettings(conn.settings);
+  await prisma.connection.update({
+    where: { id: conn.id },
+    data: { settings: { ...settings, reconnectedAt: new Date().toISOString() } as Prisma.InputJsonValue },
+  });
+  const { audit } = await import("./audit");
+  await audit(workspace.id, "connected", `Reconnected ${label}`, { userId: user.id });
+  revalidatePath("/connections");
+  revalidatePath("/activity");
   return { ok: true };
 }
 
