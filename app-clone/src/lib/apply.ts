@@ -5,6 +5,16 @@ import type { Prisma } from "../generated/prisma/client";
 
 type Detail = Record<string, unknown>;
 
+/**
+ * One apply action = one History batch. The id is the action's timestamp
+ * (local time), e.g. BATCH_20261127_003015 — the History screen groups,
+ * inspects and rolls back exactly the proposals stamped with it.
+ */
+export function newBatchId(at = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `BATCH_${at.getFullYear()}${p(at.getMonth() + 1)}${p(at.getDate())}_${p(at.getHours())}${p(at.getMinutes())}${p(at.getSeconds())}`;
+}
+
 function str(v: unknown): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
@@ -73,6 +83,7 @@ export async function applyProposal(
   proposalId: string,
   userId?: string,
   edits?: EditRow[],
+  batchId?: string,
 ) {
   const p = await prisma.proposal.findFirst({ where: { id: proposalId, workspaceId } });
   if (!p || p.status !== "pending") return { ok: false, error: "Proposal is not pending" };
@@ -211,7 +222,7 @@ export async function applyProposal(
   } catch (e) {
     await prisma.proposal.update({
       where: { id: p.id },
-      data: { status: "failed", decidedAt: new Date() },
+      data: { status: "failed", decidedAt: new Date(), ...(batchId ? { batchId } : {}) },
     });
     await audit(workspaceId, "failed", `Apply failed: ${p.title}`, { userId });
     return { ok: false, error: e instanceof Error ? e.message : "Apply failed" };
@@ -224,6 +235,7 @@ export async function applyProposal(
       decidedAt: new Date(),
       appliedAt: new Date(),
       detail: detail as Prisma.InputJsonValue,
+      ...(batchId ? { batchId } : {}),
     },
   });
   await audit(workspaceId, "applied", `Applied: ${p.title}`, { userId, meta: { proposalId: p.id } });

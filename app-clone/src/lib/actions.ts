@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
 import { requireWorkspace } from "./session";
-import { applyProposal, rejectProposal, undoProposal, type EditRow } from "./apply";
+import { applyProposal, rejectProposal, undoProposal, newBatchId, type EditRow } from "./apply";
 import { categoryFor } from "./category";
 import { runEngineForWorkspace } from "./engine";
 import { encryptJson } from "./crypto";
@@ -17,7 +17,7 @@ function refresh() {
 
 export async function approveAction(id: string) {
   const { workspace, user } = await requireWorkspace();
-  const r = await applyProposal(workspace.id, id, user.id);
+  const r = await applyProposal(workspace.id, id, user.id, undefined, newBatchId());
   refresh();
   return r;
 }
@@ -39,16 +39,17 @@ export async function undoAction(id: string) {
 /** Approve with user-edited proposed values (Edit Before Approval). */
 export async function approveEditedAction(id: string, edits: EditRow[]) {
   const { workspace, user } = await requireWorkspace();
-  const r = await applyProposal(workspace.id, id, user.id, edits);
+  const r = await applyProposal(workspace.id, id, user.id, edits, newBatchId());
   refresh();
   return r;
 }
 
 export async function approveManyAction(ids: string[]) {
   const { workspace, user } = await requireWorkspace();
+  const batchId = newBatchId();
   let applied = 0;
   for (const id of ids.slice(0, 100)) {
-    const r = await applyProposal(workspace.id, id, user.id);
+    const r = await applyProposal(workspace.id, id, user.id, undefined, batchId);
     if (r.ok) applied++;
   }
   refresh();
@@ -75,12 +76,49 @@ export async function approveAllAction() {
     select: { id: true },
   });
   let applied = 0;
+  const batchId = newBatchId();
   for (const p of pending) {
-    const r = await applyProposal(workspace.id, p.id, user.id);
+    const r = await applyProposal(workspace.id, p.id, user.id, undefined, batchId);
     if (r.ok) applied++;
   }
   refresh();
   return { ok: true, applied };
+}
+
+/**
+ * History → Rollback: revert a whole apply batch. Every still-applied
+ * proposal in the batch is undone newest-first through the same per-
+ * proposal machinery Approvals uses, so each change is reversed exactly
+ * and the proposals return to the review queue. One audit row records
+ * the batch rollback itself.
+ */
+export async function rollbackBatchAction(batchId: string) {
+  const { workspace, user } = await requireWorkspace();
+  const proposals = await prisma.proposal.findMany({
+    where: { workspaceId: workspace.id, batchId, status: "applied" },
+    orderBy: { appliedAt: "desc" },
+    select: { id: true, appliedAt: true },
+  });
+  if (proposals.length === 0) return { ok: false, error: "Nothing applied in this batch to roll back" };
+  const latest = proposals.reduce<Date | null>(
+    (max, p) => (p.appliedAt && (!max || p.appliedAt > max) ? p.appliedAt : max),
+    null,
+  );
+  if (latest && Date.now() > latest.getTime() + 7 * 86400000) {
+    return { ok: false, error: "The 7-day rollback window for this batch has closed" };
+  }
+  let reverted = 0;
+  for (const p of proposals) {
+    const r = await undoProposal(workspace.id, p.id, user.id);
+    if (r.ok) reverted++;
+  }
+  const { audit } = await import("./audit");
+  await audit(workspace.id, "rolled_back", `Rolled back batch ${batchId} (${reverted} changes)`, {
+    userId: user.id,
+    meta: { batchId, reverted },
+  });
+  refresh();
+  return { ok: true, reverted };
 }
 
 export async function runEngineAction() {

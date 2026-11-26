@@ -1008,6 +1008,37 @@ for (let i = 0; i < 2; i++) {
   await auditAt("rejected", `Rejected: ${p.title}`, decided, p.id);
 }
 
+// ---------- apply batches (History) ----------
+// Group the already-applied proposals into the batches the History
+// screen lists: proposals applied within 2 hours of each other came
+// from one approve action. The batch id carries the moment the action
+// finished (its latest apply), formatted BATCH_YYYYMMDD_HHMM.
+{
+  const appliedRows = await prisma.proposal.findMany({
+    where: { workspaceId: W, appliedAt: { not: null } },
+    orderBy: { appliedAt: "asc" },
+    select: { id: true, appliedAt: true },
+  });
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  let cluster: { id: string; at: Date }[] = [];
+  const flush = async () => {
+    if (cluster.length === 0) return;
+    const at = cluster[cluster.length - 1].at;
+    const batchId = `BATCH_${at.getFullYear()}${p2(at.getMonth() + 1)}${p2(at.getDate())}_${p2(at.getHours())}${p2(at.getMinutes())}`;
+    for (const row of cluster) {
+      await prisma.proposal.update({ where: { id: row.id }, data: { batchId } });
+    }
+    cluster = [];
+  };
+  for (const row of appliedRows) {
+    if (!row.appliedAt) continue;
+    const prev = cluster[cluster.length - 1];
+    if (prev && row.appliedAt.getTime() - prev.at.getTime() > 2 * 3600_000) await flush();
+    cluster.push({ id: row.id, at: row.appliedAt });
+  }
+  await flush();
+}
+
 // ---------- health snapshots (Data Cleanup trend) ----------
 // 31 daily snapshots DERIVED from the rows above — never a freehand curve.
 // For each past day d, an issue counts when the underlying record already

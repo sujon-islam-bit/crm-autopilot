@@ -212,6 +212,10 @@ model Proposal {
   captureId      String?
   dealExternalId String?
   status         String    @default("pending") // pending | approved | rejected | applied | undone | failed
+  // Apply batch this proposal was written to the CRM in (History screen).
+  // One batch per approve action; a bulk approve shares one id. Null for
+  // proposals that were never part of an apply (pending/rejected).
+  batchId        String?
   createdAt      DateTime  @default(now())
   decidedAt      DateTime?
   appliedAt      DateTime?
