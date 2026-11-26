@@ -42,32 +42,36 @@ async function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas text-stone-900 lg:flex">
       <aside className="lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col">
-        <div className="flex items-center gap-3 px-4 pb-2 pt-4 lg:px-5 lg:pb-4 lg:pt-6">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-pine text-[17px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(11,79,58,0.55)]">
-            A
-          </span>
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-[14.5px] font-bold tracking-[-0.01em]">{mine.workspace.name}</p>
-            <p className="truncate text-xs capitalize text-stone-400">
-              {mine.workspace.plan} plan
-            </p>
+        <div className="px-4 pb-2 pt-4 lg:px-4 lg:pb-4 lg:pt-5">
+          <div className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-[0_1px_3px_rgba(74,70,52,0.08)] ring-1 ring-line-soft">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-pine text-[17px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(11,79,58,0.55)]">
+              {mine.workspace.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-[14.5px] font-bold tracking-[-0.01em]">{mine.workspace.name}</p>
+              <p className="truncate text-xs capitalize text-stone-400">
+                {mine.workspace.plan} plan
+              </p>
+            </div>
           </div>
         </div>
         <div className="px-2 pb-3 lg:flex-1 lg:px-3">
           <SidebarNav pendingApprovals={pendingApprovals} />
         </div>
-        <div className="hidden items-center gap-3 px-5 py-4 lg:flex">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-[13px] font-bold text-pine shadow-[0_1px_3px_rgba(74,70,52,0.12)] ring-1 ring-line">
-            {(user.name || user.email).slice(0, 1).toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-[13.5px] font-semibold">{user.name || "Account"}</p>
-            <p className="truncate text-xs text-stone-400">{user.email}</p>
+        <div className="hidden px-4 pb-5 lg:block">
+          <div className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-[0_1px_3px_rgba(74,70,52,0.08)] ring-1 ring-line-soft">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-lime text-[13px] font-bold text-lime-950">
+              {(user.name || user.email).slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-[13.5px] font-semibold">{user.name || "Account"}</p>
+              <p className="truncate text-xs text-stone-400">{user.email}</p>
+            </div>
+            <SignOutButton />
           </div>
-          <SignOutButton />
         </div>
       </aside>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-8 lg:py-10">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-8 lg:py-8">{children}</main>
     </div>
   );
 }
