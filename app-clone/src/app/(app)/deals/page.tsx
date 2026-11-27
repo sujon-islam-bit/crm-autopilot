@@ -6,6 +6,8 @@ import { STAGES } from "../../../lib/constants";
 import { can, normalizeRole } from "../../../lib/permissions";
 import DealsClient from "./DealsClient";
 
+export const metadata = { title: "Deals & Contacts · Vouchso" };
+
 async function Inner({ tab }: { tab?: string }) {
   await connection();
   const { workspace, user, role } = await requireWorkspace();

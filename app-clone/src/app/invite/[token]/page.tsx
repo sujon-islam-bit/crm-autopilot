@@ -7,6 +7,8 @@ import { ROLE_LABELS, normalizeRole } from "../../../lib/permissions";
 import { LogoMark } from "../../../components/icons";
 import AcceptButton from "./AcceptButton";
 
+export const metadata = { title: "Invitation · Vouchso" };
+
 async function Inner({ params }: { params: Promise<{ token: string }> }) {
   await connection();
   const { token } = await params;
@@ -101,7 +103,7 @@ async function Inner({ params }: { params: Promise<{ token: string }> }) {
       <div className="card w-full max-w-[430px] p-7">
         <div className="mb-5 flex items-center gap-2.5">
           <LogoMark size={30} />
-          <span className="text-[16px] font-extrabold tracking-tight">CleanPipe</span>
+          <span className="text-[16px] font-extrabold tracking-tight">Vouchso</span>
         </div>
         {body}
       </div>

@@ -242,7 +242,7 @@ export default function DashboardClient(props: DashProps) {
             <div className="min-w-0 flex-1">
               <div className="text-[15px] font-bold">Connect your CRM</div>
               <p className="mt-0.5 text-[13px] text-muted">
-                Connect HubSpot or Salesforce and CleanPipe will start reading your pipeline and preparing updates
+                Connect HubSpot or Salesforce and Vouchso will start reading your pipeline and preparing updates
                 for your approval.
               </p>
             </div>

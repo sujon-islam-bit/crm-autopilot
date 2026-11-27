@@ -27,6 +27,52 @@
   --color-violet-tint: #efeaff;
   --color-violet-soft: #f3f0ff;
   --color-red: #e5484d;
+
+  /* Vouchso marketing ("The Approval Desk") tokens — additive, marketing routes only */
+  --color-mkt-violet: #6c3ce9;
+  --color-mkt-violet-dark: #5a2bd0;
+  --color-mkt-pink: #d23b72;
+  --color-mkt-ink: #17131f;
+  --color-mkt-body: #4a4457;
+  --color-mkt-ground: #faf9fc;
+  --color-mkt-card: #fafafa;
+  --color-mkt-border: #e6e1f0;
+  --color-mkt-dark: #14101f;
+  --color-mkt-green: #1e9e6a;
+  --font-jakarta: "Plus Jakarta Sans", "Inter", ui-sans-system, system-ui, sans-serif;
+  --font-jbmono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Vouchso marketing v2 — dark cinematic 3D journey tokens (marketing routes only) */
+  --color-d3-bg: #0d0a14;
+  --color-d3-bg2: #141020;
+  --color-d3-panel: #171126;
+  --color-d3-ivory: #f4efe8;
+  --color-d3-ivory2: #cfc6ba;
+  --color-d3-mute: #9b8fa8;
+  --color-d3-pink: #d23b72;
+  --color-d3-pink-bright: #e7548f;
+  --color-d3-violet: #6c3ce9;
+  --color-d3-line: #2b2140;
+  --color-d3-green: #2fbf71;
+  --font-fraunces: "Fraunces", Georgia, "Times New Roman", serif;
+
+  /* Vouchso marketing v3 — HubSpot-clone light tokens (marketing routes only) */
+  --color-hs-paper: #fcfcfa;
+  --color-hs-mist: #f7f5f0;
+  --color-hs-ink: #1f1f1f;
+  --color-hs-body: #33353a;
+  --color-hs-mute: #63666d;
+  --color-hs-line: #e7e3db;
+  /* THE single marketing accent token — swap this one value to re-accent every
+     marketing page. Working placeholder per Sujon's HubSpot-clone order:
+     HubSpot orange. (Blue, violet and pink are banned on marketing pages.) */
+  --color-hs-brand: #ff5c35;
+  --color-hs-brand-dark: #e8491f;
+  --color-hs-tint: #ffede7;
+  --color-hs-dark: #17171c;
+  --color-hs-foot: #1b1b1f;
+  --color-hs-green: #1e9e6a;
+  --font-hsserif: "Fraunces", Georgia, "Times New Roman", serif;
 }
 
 html,
@@ -118,4 +164,12 @@ select:focus,
 textarea:focus {
   border-color: var(--color-primary) !important;
   box-shadow: 0 0 0 3px rgba(43, 107, 240, 0.15);
+}
+
+/* Public auth pages speak the marketing language (orange), not the app blue. */
+.auth-scope input:focus,
+.auth-scope select:focus,
+.auth-scope textarea:focus {
+  border-color: var(--color-hs-brand) !important;
+  box-shadow: 0 0 0 3px var(--color-hs-tint);
 }

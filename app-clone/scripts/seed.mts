@@ -1,4 +1,4 @@
-// Seed for the CleanPipe clone demo workspace.
+// Seed for the Vouchso clone demo workspace.
 // Every number on the Command Center is a real row: open pipeline sums to
 // $1,240,000, 14 pending proposals, hygiene counts 19/24/31/8, rep-time
 // saved 630 min this week vs 562 last week (+12%), queue delta +3.

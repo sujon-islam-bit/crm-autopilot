@@ -7,6 +7,8 @@ import { can, normalizeRole } from "../../../lib/permissions";
 import { parseWorkspaceSettings } from "../../../lib/settings";
 import ApprovalsClient from "../../../components/ApprovalsClient";
 
+export const metadata = { title: "Approvals · Vouchso" };
+
 async function Inner() {
   await connection();
   const { workspace, user, role } = await requireWorkspace();

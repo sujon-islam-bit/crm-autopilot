@@ -4,6 +4,8 @@ import { requireWorkspace } from "../../../lib/session";
 import { getAssistantUsage, latestThreadId, loadThread } from "../../../lib/assistant";
 import AssistantClient from "../../../components/AssistantClient";
 
+export const metadata = { title: "AI Assistant · Vouchso" };
+
 async function AssistantInner() {
   await connection();
   const { user, workspace, role } = await requireWorkspace();

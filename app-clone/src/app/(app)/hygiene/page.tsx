@@ -6,7 +6,7 @@ import { getCleanupData } from "@/lib/cleanup";
 import { can } from "@/lib/permissions";
 import HygieneClient from "./HygieneClient";
 
-export const metadata = { title: "Data Cleanup — CRM Autopilot" };
+export const metadata = { title: "Data Cleanup · Vouchso" };
 
 async function Inner({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   await connection();

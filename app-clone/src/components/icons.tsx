@@ -324,18 +324,21 @@ export function I({
   );
 }
 
-export function LogoMark({ size = 34 }: { size?: number }) {
+export function LogoMark({ size = 34, dark = false }: { size?: number; dark?: boolean }) {
+  // Final Vouchso brand mark (sample S3, Sujon's pick 2026-11-28):
+  // near-black #17131F rounded tile + white orbit/arc glyph. On dark
+  // surfaces pass `dark` for the reversed variant (white tile, ink glyph)
+  // — identical geometry either way.
+  const tile = dark ? "#FFFFFF" : "#17131F";
+  const glyph = dark ? "#17131F" : "#FFFFFF";
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-      <defs>
-        <linearGradient id="lg-diamond" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#4f8dfd" />
-          <stop offset="100%" stopColor="#2456d6" />
-        </linearGradient>
-      </defs>
-      <path d="M20 2 38 20 20 38 2 20Z" fill="url(#lg-diamond)" opacity="0.25" />
-      <path d="M20 7 33 20 20 33 7 20Z" fill="url(#lg-diamond)" />
-      <path d="M20 12.5 27.5 20 20 27.5 12.5 20Z" fill="#fff" opacity="0.9" />
+    <svg width={size} height={size} viewBox="0 0 200 200" aria-hidden>
+      <rect x="20" y="20" width="160" height="160" rx="36" fill={tile} />
+      <g fill="none" stroke={glyph} strokeWidth="11" strokeLinecap="round">
+        <path d="M123,60.2 A46,46 0 1 1 56.8,84.3" />
+        <path d="M77,119.3 A30,30 0 0 0 128.2,89.7" />
+      </g>
+      <circle cx="100" cy="100" r="6" fill={glyph} />
     </svg>
   );
 }

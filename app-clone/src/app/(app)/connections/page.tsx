@@ -6,6 +6,8 @@ import { getConnectionsData } from "@/lib/connections";
 import { can } from "@/lib/permissions";
 import ConnectionsClient from "@/components/ConnectionsClient";
 
+export const metadata = { title: "Connections · Vouchso" };
+
 async function ConnectionsInner() {
   await connection();
   const { workspace, role } = await requireWorkspace();

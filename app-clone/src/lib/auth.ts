@@ -8,6 +8,16 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3200",
+  // Daily login is email + password (locked auth spec). Accounts are still
+  // CREATED through the email-code flow (sign-up verifies the email with a
+  // one-time code first, then the user sets a password via /set-password);
+  // the email code also stays as a sign-in fallback and drives the
+  // forgot-password reset.
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
+  },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {

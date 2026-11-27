@@ -4,7 +4,7 @@ import { requireWorkspace } from "@/lib/session";
 import { getPipelineData, resolvePeriod } from "@/lib/pipeline";
 import PipelineClient from "./PipelineClient";
 
-export const metadata = { title: "Pipeline — CRM Autopilot" };
+export const metadata = { title: "Pipeline · Vouchso" };
 
 async function Inner({
   searchParams,

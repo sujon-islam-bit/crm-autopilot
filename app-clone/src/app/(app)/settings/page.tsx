@@ -6,6 +6,8 @@ import { auth } from "../../../lib/auth";
 import { getSettingsData } from "../../../lib/settings";
 import SettingsClient from "../../../components/SettingsClient";
 
+export const metadata = { title: "Settings · Vouchso" };
+
 async function Inner() {
   await connection();
   const { user, workspace } = await requireWorkspace();

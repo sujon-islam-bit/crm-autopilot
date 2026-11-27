@@ -269,7 +269,7 @@ function ManagePanel({
         <section>
           <h4 className="text-[13px] font-bold">Data permissions</h4>
           <p className="mt-1 text-[12px] leading-relaxed text-muted">
-            Read permissions start on, write permissions start off — and CleanPipe only writes to{" "}
+            Read permissions start on, write permissions start off — and Vouchso only writes to{" "}
             {app.name} after you approve a change. Changes save immediately.
           </p>
           <div className="mt-2">
@@ -325,7 +325,7 @@ function ManagePanel({
           ) : (
             <div className="rounded-[12px] bg-[#fdecec] px-4 py-3">
               <p className="text-[12.5px] leading-relaxed font-medium text-ink2">
-                Disconnect {app.name}? CleanPipe will stop syncing it. You can reconnect later.
+                Disconnect {app.name}? Vouchso will stop syncing it. You can reconnect later.
               </p>
               <div className="mt-2.5 flex gap-2">
                 <button
@@ -401,7 +401,7 @@ function SetupPanel({ app, onClose }: { app: CatalogApp; onClose: () => void }) 
           <h4 className="text-[13px] font-bold">Permissions — start read-only</h4>
           <p className="mt-1 text-[12px] leading-relaxed text-muted">
             Recommended: start with read-only access. Reads are on, writes are off — you can grant write
-            access later from Manage, and CleanPipe never writes without your approval anyway.
+            access later from Manage, and Vouchso never writes without your approval anyway.
           </p>
           <div className="mt-2">
             <PermissionGroups
@@ -483,7 +483,7 @@ export default function ConnectionsClient({
         </span>
         <div className="flex-1">
           <h1 className="text-[26px] font-extrabold tracking-tight">Connections</h1>
-          <p className="mt-0.5 text-[13.5px] text-muted">Connect your tools and let CleanPipe work across them.</p>
+          <p className="mt-0.5 text-[13.5px] text-muted">Connect your tools and let Vouchso work across them.</p>
         </div>
         {canManage && (
           <button
@@ -742,7 +742,7 @@ export default function ConnectionsClient({
         <div className="min-w-0 flex-1">
           <h3 className="text-[16px] font-extrabold">Power your CRM with more integrations</h3>
           <p className="mt-0.5 text-[13px] text-muted">
-            Connect more tools like Microsoft Outlook, Notion, or custom APIs to get even more value from CleanPipe.
+            Connect more tools like Microsoft Outlook, Notion, or custom APIs to get even more value from Vouchso.
           </p>
         </div>
         <button
@@ -760,7 +760,7 @@ export default function ConnectionsClient({
             <div className="flex items-start gap-3">
               <div className="flex-1">
                 <h3 className="text-[17px] font-extrabold">Connect an integration</h3>
-                <p className="mt-0.5 text-[12.5px] text-muted">Pick a tool to see what CleanPipe will ask for.</p>
+                <p className="mt-0.5 text-[12.5px] text-muted">Pick a tool to see what Vouchso will ask for.</p>
               </div>
               <button onClick={() => setPickerOpen(false)} className="text-faint hover:text-ink" aria-label="Close">
                 <I n="x" size={17} />

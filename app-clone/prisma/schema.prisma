@@ -105,6 +105,10 @@ model Membership {
   // Optional display override for the shell's role line (the demo persona
   // stores "RevOps Admin"); null → the label is derived from `role`.
   roleLabel   String?
+  // The member's self-described job (picked on the sign-up role step:
+  // Owner / Admin / Manager / Sales Rep / Viewer). Purely descriptive —
+  // the permission role is `role` (a workspace creator is always "owner").
+  jobRole     String?
   // Per-user preferences inside this workspace (Settings → Notifications):
   // { emailNotifications, slackNotifications, approvalReminders, syncAlerts, frequency }
   settings    Json?

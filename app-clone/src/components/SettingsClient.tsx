@@ -235,7 +235,7 @@ export default function SettingsClient({
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Settings</h1>
           <p className="mt-1 text-[13.5px] text-muted">
-            Manage your account, workspace, and CleanPipe preferences.
+            Manage your account, workspace, and Vouchso preferences.
           </p>
         </div>
         <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-green-tint px-3 py-1.5 text-[12px] font-bold text-green">
@@ -374,7 +374,7 @@ export default function SettingsClient({
               <CardHeader
                 icon="sparkle"
                 title="AI Preferences"
-                sub="Configure how CleanPipe's AI works for your business."
+                sub="Configure how Vouchso's AI works for your business."
               />
               {!canSettings && (
                 <p className="mt-3 rounded-[10px] bg-canvas px-3.5 py-2.5 text-[12.5px] font-medium text-ink2">
@@ -455,7 +455,7 @@ export default function SettingsClient({
                     <div className="text-[14px] font-bold text-ink">Auto-Apply Suggestions</div>
                     <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
                       Off by design — every change needs a person's approval first. That approval
-                      step is CleanPipe's core trust rule, so auto-apply can't be switched on.
+                      step is Vouchso's core trust rule, so auto-apply can't be switched on.
                     </p>
                   </div>
                   <Toggle on={false} onChange={() => {}} disabled label="Auto-Apply Suggestions" />

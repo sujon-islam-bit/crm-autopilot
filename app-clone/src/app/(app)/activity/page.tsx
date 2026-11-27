@@ -7,6 +7,8 @@ import { getHistoryData } from "@/lib/history";
 import { can, hasTeamScope, ownsDeal } from "@/lib/permissions";
 import HistoryClient from "@/components/HistoryClient";
 
+export const metadata = { title: "History · Vouchso" };
+
 async function HistoryInner({ period }: { period: number }) {
   await connection();
   const { workspace, user, role } = await requireWorkspace();

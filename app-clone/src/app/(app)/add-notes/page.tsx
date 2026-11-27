@@ -1,5 +1,7 @@
 import AddNotesClient from "./AddNotesClient";
 
+export const metadata = { title: "Add notes · Vouchso" };
+
 export default function AddNotesPage() {
   return (
     <div className="px-7 pt-5 pb-7">

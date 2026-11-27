@@ -8,6 +8,8 @@ import { toProposalView } from "../../../lib/view";
 import { can, hasTeamScope, normalizeRole, ownsDeal } from "../../../lib/permissions";
 import DashboardClient, { type RepStats } from "./DashboardClient";
 
+export const metadata = { title: "Dashboard · Vouchso" };
+
 async function DashboardInner() {
   await connection();
   const { user, workspace, role } = await requireWorkspace();

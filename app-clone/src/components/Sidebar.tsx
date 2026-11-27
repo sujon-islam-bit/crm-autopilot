@@ -82,7 +82,7 @@ export default function Sidebar({
       <div className="flex items-center gap-2.5 px-1.5">
         <LogoMark size={32} />
         <div className="leading-tight">
-          <div className="text-[16px] font-bold tracking-tight">CleanPipe</div>
+          <div className="text-[16px] font-bold tracking-tight">Vouchso</div>
           <div className="text-[11px] text-muted">CRM Autopilot</div>
         </div>
       </div>
